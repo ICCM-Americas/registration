@@ -1,0 +1,58 @@
+{
+    "name": "conference-tools/registration",
+    "description": "Reusable conference registration system for Laravel: group and participant registration driven by a configurable EAV questionnaire, multi-currency pricing with base charges and discount codes, and an admin form-builder / pricing console. Brings its own domain; the host app keeps owning users and authentication.",
+    "type": "library",
+    "license": "MIT",
+    "version": "1.0.0",
+    "keywords": ["laravel", "conference", "registration", "questionnaire"],
+    "require": {
+        "php": "^8.1",
+        "ext-zip": "*",
+        "illuminate/contracts": "^9.0 || ^10.0 || ^11.0 || ^12.0 || ^13.0",
+        "illuminate/support": "^9.0 || ^10.0 || ^11.0 || ^12.0 || ^13.0",
+        "illuminate/database": "^9.0 || ^10.0 || ^11.0 || ^12.0 || ^13.0"
+    },
+    "require-dev": {
+        "conference-tools/branding": "*",
+        "orchestra/testbench": "^7.0 || ^8.0 || ^9.0 || ^10.0 || ^11.0",
+        "phpunit/phpunit": "^9.0 || ^10.0 || ^11.0 || ^12.0"
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../branding"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "ConferenceTools\\Registration\\": "src/",
+            "ConferenceTools\\Registration\\Database\\Factories\\": "database/factories/",
+            "ConferenceTools\\Registration\\Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "ConferenceTools\\Registration\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": [
+            "phpunit"
+        ],
+        "test:coverage": [
+            "phpunit --coverage-html coverage/html --coverage-clover coverage/clover.xml"
+        ]
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "ConferenceTools\\Registration\\RegistrationServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "config": {
+        "sort-packages": true
+    }
+}

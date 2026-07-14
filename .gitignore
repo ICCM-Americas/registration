@@ -1,0 +1,35 @@
+# Dependencies
+/vendor
+/node_modules
+
+# Composer (library: lockfile is not committed)
+composer.lock
+
+# Testing / coverage
+/build
+/coverage
+.phpunit.cache
+.phpunit.result.cache
+/testbench.yaml
+database/database.sqlite
+
+# Tooling caches
+.php-cs-fixer.cache
+
+# Local secrets / credentials
+.env
+/auth.json
+
+# Demo data: kept in the working tree, not shipped in the repo.
+database/seeders/DemoRegistrationSeeder.php
+
+# OS / editor / AI tooling
+.DS_Store
+Thumbs.db
+/.claude
+/.codex
+/.cursor/
+/.idea
+/.mcp.json
+/.vscode
+/.zed

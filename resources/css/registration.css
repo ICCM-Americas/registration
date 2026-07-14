@@ -1,0 +1,196 @@
+/*
+ * Styles for the registration package's own screens.
+ *
+ * Published to public/vendor/registration/css and linked by the host layout.
+ * These screens are written with Bootstrap classes; everything shared with the
+ * host or with a sibling package — the iccm-* components, rows, field widths,
+ * drag and print utilities — lives in the branding package's stylesheets
+ * instead. See that package's README.
+ */
+
+/* --- Chrome ---------------------------------------------------------------
+   Used only by the package's own fallback layout, which a host replaces by
+   pointing config('registration.layout') at its own. */
+.navbar-brand-bar { background-color: var(--color-primary) !important; }
+.navbar-brand-bar .navbar-brand,
+.navbar-brand-bar .nav-link { color: #ffffff; }
+
+/* --- Registration wizard --------------------------------------------------*/
+
+.register-step-progress { height: 4px; }
+
+.reg-summary-card-header { display: flex; justify-content: space-between; align-items: center; }
+.reg-summary-label-col { width: 40%; }
+
+/* A yes/no question rendered as a pair of buttons: the radio itself is
+   stretched over its label and made transparent, so the whole button is the
+   hit target while the native control still drives the form. */
+.question-yesno-btn { position: relative; }
+.question-yesno-input {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    margin: 0; opacity: 0; cursor: pointer;
+}
+
+.test-mode-banner { gap: .5rem; }
+
+/* --- Admin dashboard cards ------------------------------------------------*/
+
+/* Side-by-side counts on the arrivals and registrations summary cards. */
+.reg-stat-row { display: flex; gap: 2rem; flex-wrap: wrap; }
+
+/* --- Pricing --------------------------------------------------------------*/
+
+.pricing-per-diem-fieldset { border: 1px solid #dee2e6; border-radius: .25rem; padding: .5rem .75rem; }
+.pricing-per-diem-legend { float: none; width: auto; font-size: .875rem; margin-bottom: .25rem; }
+
+/* --- Rooms and assignments ------------------------------------------------*/
+
+.rooms-field-capacity { display: inline-block; }
+.rooms-zone-delete { margin-left: auto; }
+.assignments-room-row { margin-bottom: .75rem; }
+
+/* --- Variables ------------------------------------------------------------*/
+
+/* Tokens are long single words; break them anywhere rather than let one widen
+   the row past its neighbors. */
+.variables-token { overflow-wrap: anywhere; }
+
+/* --- Logistics ------------------------------------------------------------*/
+
+/* The current value of a setting, marked with a rule down its leading edge to
+   separate it from the field that edits it. */
+.logistics-value-field { border-left: 3px solid #adb5bd; background: #fff; }
+.logistics-dual-list { display: flex; gap: .5rem; align-items: center; }
+.logistics-dual-select { flex: 1 1 40%; }
+.logistics-dual-buttons { display: flex; flex-direction: column; gap: .25rem; }
+.logistics-field-narrow { max-width: 8rem; }
+
+.shuttles-flight-link { text-decoration: underline; }
+
+/* --- Payments -------------------------------------------------------------*/
+
+.payments-card-header { display: flex; flex-wrap: wrap; gap: .5rem .75rem; align-items: center; justify-content: space-between; }
+.payments-guests-list { margin-bottom: .75rem; }
+.payments-guest-row { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; justify-content: space-between; padding: .35rem 0; border-top: 1px solid #e9ecef; }
+.payments-breakdown-table { margin-bottom: .75rem; }
+.payments-breakdown-table td:last-child { text-align: right; }
+.payments-field-notes { flex: 1 1 12rem; }
+
+/* --- Reports --------------------------------------------------------------*/
+
+.report-field-select-lg { max-width: 18rem; }
+.report-field-select-md { max-width: 10rem; }
+.report-field-select-sm { max-width: 14rem; }
+/* Drops the control onto its own line inside the wrapping row. */
+.report-field-full { flex-basis: 100%; }
+.report-column-heading { flex: 0 0 auto; }
+.report-column-form { flex: 1 1 26rem; }
+
+/* --- Modals ---------------------------------------------------------------*/
+
+.reg-modal-overlay { background: rgba(0,0,0,.5); overflow-y: auto; }
+/* Bootstrap's own .modal class sets display:none unconditionally — an
+   author-origin rule the "hidden" content attribute (user-agent origin) can
+   never win against. A same-origin class toggled later in the cascade is what
+   actually shows the modal. */
+.modal.is-open { display: block; }
+
+/* Rules for the AJAX-fetched editor fragments (translations, visibility,
+   report column mapping) live here rather than with the fragments: a fragment
+   arrives via innerHTML, so anything it carried would have to be styled from
+   the page that injected it anyway. */
+.translations-locale-input { max-width: 8rem; }
+.visibility-group-card { border-left: 3px solid #007bff; }
+.mapping-field-sm { max-width: 12rem; }
+.mapping-field-md { max-width: 14rem; }
+
+/* --- Prayer pals ----------------------------------------------------------*/
+
+.prayer-pals-board { display: flex; flex-wrap: wrap; gap: 1.5rem; }
+.prayer-pals-column { flex: 1 1 320px; min-width: 280px; }
+.prayer-pals-groups { display: flex; flex-wrap: wrap; gap: .75rem; }
+/* The left rule reports whether a group is at, under or over its target size. */
+.prayer-pals-group { flex: 1 1 240px; min-width: 220px; border-left-width: 4px; }
+.prayer-pals-group--ok { border-left-color: #28a745; }
+.prayer-pals-group--low { border-left-color: #ffc107; }
+.prayer-pals-group--high { border-left-color: #dc3545; }
+.prayer-pals-pool, .prayer-pals-dropzone { min-height: 2.5rem; }
+.prayer-pals-dropzone.drag-over { outline: 2px dashed #0d6efd; outline-offset: -2px; background: rgba(13,110,253,.05); }
+.prayer-pals-chip {
+    display: inline-flex; align-items: center; gap: .35rem;
+    background: #e9ecef; border-radius: 999px; padding: .25rem .35rem .25rem .6rem;
+    margin: .15rem; font-size: .875rem; cursor: grab; user-select: none;
+}
+.prayer-pals-chip__remove {
+    border: 0; background: transparent; line-height: 1; padding: 0 .2rem;
+    color: #6c757d; cursor: pointer; font-size: 1rem;
+}
+.prayer-pals-chip__remove:hover { color: #dc3545; }
+.prayer-pals-chip__org { color: #6c757d; font-size: .8em; }
+.prayer-pals-chip__org::before { content: "· "; }
+
+@media print {
+    /* The unassigned pool is a working area, not part of the printed roster. */
+    .prayer-pals-pool { display: none; }
+}
+
+/* --- Badge layout editor --------------------------------------------------*/
+
+.badge-layout-size-card { cursor: pointer; }
+.badge-layout-canvas { position: relative; border: 1px dashed #999; background: #fff; margin-bottom: 1.5rem; }
+.badge-layout-element { position: absolute; border: 1px solid #0d6efd; background: rgba(13,110,253,.08); padding: 2px 4px; font-size: .75rem; cursor: move; box-sizing: border-box; overflow: hidden; white-space: nowrap; }
+.badge-layout-image-preview { max-height: 60px; display: block; margin-top: .5rem; }
+
+/* --- Printed badges -------------------------------------------------------
+   The measurements come from the admin-configured badge size, so the sheet
+   sets them as custom properties in an inline block (see
+   admin/logistics/badges.blade.php); every rule that consumes them is here. */
+
+.badge-sheet { display: flex; flex-wrap: wrap; gap: 0.125in; }
+
+.badge-card {
+    position: relative;
+    width: var(--badge-card-w); height: var(--badge-card-h);
+    border: 1px dashed #999;
+    box-sizing: border-box;
+    overflow: hidden;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    background: #fff;
+}
+.badge-card__header {
+    position: absolute;
+    top: var(--badge-pad); left: var(--badge-pad);
+    width: var(--badge-header-w);
+    font-size: var(--badge-header-font);
+    white-space: nowrap;
+    overflow: hidden;
+}
+.badge-card__header img {
+    vertical-align: middle;
+    max-height: var(--badge-logo-h); max-width: var(--badge-logo-w);
+    margin-right: var(--badge-logo-gap);
+}
+.badge-card__header span { vertical-align: middle; }
+.badge-card__name {
+    position: absolute;
+    top: var(--badge-name-top); left: 0; width: var(--badge-card-w);
+    text-align: center;
+    font-size: var(--badge-name-font); font-weight: bold; line-height: 1.1;
+}
+.badge-card__organization {
+    position: absolute;
+    top: var(--badge-org-top); left: 0; width: var(--badge-card-w);
+    text-align: center;
+    font-size: var(--badge-org-font); font-style: italic;
+}
+/* Elements placed by the badge layout editor; their geometry is per-element
+   and applied from data-* attributes in JS. */
+.badge-card-element { position: absolute; }
+.badge-card-element__img { width: 100%; height: auto; }
+
+@media print {
+    /* The on-screen gutter exists so the cards read as separate; on paper the
+       cards butt up against each other for cutting. */
+    .badge-sheet { gap: 0; }
+}
