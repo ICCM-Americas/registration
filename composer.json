@@ -13,7 +13,9 @@
         "illuminate/database": "^9.0 || ^10.0 || ^11.0 || ^12.0 || ^13.0"
     },
     "require-dev": {
+        "brianium/paratest": "^7.0",
         "conference-tools/branding": "*",
+        "laravel/pint": "^1.27",
         "orchestra/testbench": "^7.0 || ^8.0 || ^9.0 || ^10.0 || ^11.0",
         "phpunit/phpunit": "^9.0 || ^10.0 || ^11.0 || ^12.0"
     },
@@ -37,9 +39,15 @@
     },
     "scripts": {
         "test": [
-            "phpunit"
+            "paratest"
         ],
         "test:coverage": [
+            "paratest --coverage-html coverage/html --coverage-clover coverage/clover.xml"
+        ],
+        "test:github": [
+            "phpunit"
+        ],
+        "test:coverage:github": [
             "phpunit --coverage-html coverage/html --coverage-clover coverage/clover.xml"
         ]
     },
@@ -53,6 +61,7 @@
     "minimum-stability": "dev",
     "prefer-stable": true,
     "config": {
-        "sort-packages": true
+        "sort-packages": true,
+        "process-timeout": 0
     }
 }

@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  ci:
+    name: Build & Test
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    # The `secrets` context is not available to a step's `if`, so the token is
+    # exposed as an environment variable the upload step can test for.
+    env:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+    # The package's dev dependencies include conference-tools/branding through a
+    # path repository at ../branding, so both checkouts sit side by side here.
+    defaults:
+      run:
+        working-directory: package
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v6
+        with:
+          path: package
+
+      - name: Check out branding package
+        uses: actions/checkout@v6
+        with:
+          repository: ICCM-Americas/branding
+          path: branding
+
+      - name: Set up PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: mbstring, pdo, pdo_sqlite, sqlite3, zip
+          coverage: xdebug
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Run Pint formatting check
+        id: pint
+        run: vendor/bin/pint --test
+        continue-on-error: true
+
+      - name: Run tests with coverage
+        id: tests
+        run: composer test:coverage:github
+        continue-on-error: true
+
+      # `defaults.run.working-directory` does not apply to an action, so this
+      # path is relative to the workspace rather than the package checkout.
+      - name: Upload coverage to Codecov
+        if: steps.tests.outcome == 'success' && env.CODECOV_TOKEN != ''
+        uses: codecov/codecov-action@v6
+        with:
+          files: package/coverage/clover.xml
+          token: ${{ env.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: coverage
+          path: package/coverage
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Summarize results
+        if: always()
+        run: |
+          echo ""
+          echo "=== CI Results ==="
+          echo "Formatting (Pint):  ${{ steps.pint.outcome }}"
+          echo "Tests:              ${{ steps.tests.outcome }}"
+          echo "=================="
+          if [ "${{ steps.pint.outcome }}" != "success" ] || [ "${{ steps.tests.outcome }}" != "success" ]; then
+            exit 1
+          fi
