@@ -28,12 +28,12 @@ jobs:
 
     steps:
       - name: Check out code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           path: package
 
       - name: Check out branding package
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: ICCM-Americas/branding
           path: branding
@@ -62,7 +62,7 @@ jobs:
       # path is relative to the workspace rather than the package checkout.
       - name: Upload coverage to Codecov
         if: steps.tests.outcome == 'success' && env.CODECOV_TOKEN != ''
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           files: package/coverage/clover.xml
           token: ${{ env.CODECOV_TOKEN }}
@@ -70,7 +70,7 @@ jobs:
 
       - name: Upload coverage report
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: coverage
           path: package/coverage
