@@ -63,9 +63,12 @@ class QuestionBuilderControllerTest extends TestCase
         // A trailing quote closes the match on the exact destroy-form action —
         // without it, the destroy URL is a substring of the Visibility link's
         // URL (".../sections/1" vs ".../sections/1/visibility") and would
-        // always "match".
-        $response->assertDontSee('action="'.route('registration.admin.sections.destroy', $section).'"', false);
+        // always "match". The class pins which form, since the inline title
+        // form posts (as a PUT) to the destroy form's very URL.
+        $response->assertDontSee('action="'.route('registration.admin.sections.destroy', $section).'" class="js-confirm-submit"', false);
         $response->assertDontSee('action="'.route('registration.admin.questions.destroy', $guestQuestion).'"', false);
+        // Protection is against deletion, not renaming.
+        $response->assertSee('action="'.route('registration.admin.sections.update', $section).'" class="js-section-title', false);
     }
 
     #[TestDox('builder rows carry toggleable tags reflecting their state')]
@@ -478,14 +481,43 @@ class QuestionBuilderControllerTest extends TestCase
     {
         $section = Section::where('key', 'your-details')->first();
 
+        // The save lands back on the builder at the section it edited.
         $this->actingAs($this->makeUser())->put(route('registration.admin.sections.update', $section), [
             'title' => 'Your info', 'description' => 'Tell us about you', 'enabled' => '0',
-        ])->assertRedirect(route('registration.admin.questions'));
+        ])->assertRedirect(route('registration.admin.questions').'#section-'.$section->id);
 
         $section->refresh();
         $this->assertSame('Your info', $section->title);
         $this->assertSame('Tell us about you', $section->description);
         $this->assertFalse((bool) $section->enabled);
+    }
+
+    #[TestDox('the builder edits a section title in place on its card header')]
+    public function test_the_builder_edits_a_section_title_in_place_on_its_card_header(): void
+    {
+        $section = Section::where('key', 'your-details')->first();
+
+        $this->actingAs($this->makeUser())
+            ->get(route('registration.admin.questions'))
+            ->assertOk()
+            ->assertSee('action="'.route('registration.admin.sections.update', $section).'" class="js-section-title', false)
+            ->assertSee('value="Your details" maxlength="255" required', false);
+    }
+
+    #[TestDox('saving a title alone leaves the section description and enabled flag alone')]
+    public function test_saving_a_title_alone_leaves_the_section_description_and_enabled_flag_alone(): void
+    {
+        $section = Section::where('key', 'your-details')->first();
+        $section->update(['description' => 'Tell us about you', 'enabled' => true]);
+
+        $this->actingAs($this->makeUser())
+            ->put(route('registration.admin.sections.update', $section), ['title' => 'Your info'])
+            ->assertRedirect(route('registration.admin.questions').'#section-'.$section->id);
+
+        $section->refresh();
+        $this->assertSame('Your info', $section->title);
+        $this->assertSame('Tell us about you', $section->description);
+        $this->assertTrue((bool) $section->enabled);
     }
 
     #[TestDox('create question form renders')]
@@ -793,6 +825,20 @@ class QuestionBuilderControllerTest extends TestCase
         $this->assertSame($originalPosition, $nickname->position);
     }
 
+    #[TestDox('update section is blocked while locked')]
+    public function test_update_section_is_blocked_while_locked(): void
+    {
+        $admin = $this->admin();
+        $section = Section::where('key', 'your-details')->first();
+
+        $this->actingAs($admin)
+            ->put(route('registration.admin.sections.update', $section), ['title' => 'Changed while locked'])
+            ->assertRedirect(route('registration.admin.questions'))
+            ->assertSessionHas('questions_error');
+
+        $this->assertNotSame('Changed while locked', $section->fresh()->title);
+    }
+
     #[TestDox('index and forms expose the locked flag')]
     public function test_index_and_forms_expose_the_locked_flag(): void
     {
@@ -802,11 +848,18 @@ class QuestionBuilderControllerTest extends TestCase
         $unlocked->assertSee(__('registration::admin.edit'));
         $unlocked->assertDontSee(__('registration::admin.view'));
 
+        // Renaming a section is locked like editing a question, but without a
+        // read-only counterpart: the card header falls back to plain text.
+        $section = Section::where('key', 'your-details')->first();
+        $unlocked->assertSee('action="'.route('registration.admin.sections.update', $section).'" class="js-section-title', false);
+
         $admin = $this->admin();
         $locked = $this->actingAs($admin)
             ->get(route('registration.admin.questions'))
             ->assertOk();
         $locked->assertSee(__('registration::admin.view'));
+        $locked->assertDontSee('action="'.route('registration.admin.sections.update', $section).'" class="js-section-title', false);
+        $locked->assertSee('<strong>Your details</strong>', false);
 
         $gender = Question::where('key', 'gender')->first();
         $this->actingAs($admin)

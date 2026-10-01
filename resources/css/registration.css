@@ -86,6 +86,23 @@
 .report-column-heading { flex: 0 0 auto; }
 .report-column-form { flex: 1 1 26rem; }
 
+/* --- Form builder ---------------------------------------------------------*/
+
+/* The section title, edited in place on the card header. It still reads as the
+   card's heading until it is hovered or focused, when it takes on the field's
+   own frame; its Save button keeps its space but only shows while the field is
+   in use, so a console of sections doesn't read as a column of forms. */
+.section-title-input {
+    width: 16rem; max-width: 100%;
+    font-weight: 700;
+    background-color: transparent;
+    border-color: transparent;
+}
+.section-title-input:hover,
+.section-title-input:focus { background-color: #fff; border-color: #ced4da; }
+.js-section-title .btn { visibility: hidden; }
+.js-section-title:focus-within .btn { visibility: visible; }
+
 /* --- Modals ---------------------------------------------------------------*/
 
 .reg-modal-overlay { background: rgba(0,0,0,.5); overflow-y: auto; }

@@ -26,8 +26,9 @@ use Illuminate\Validation\Rule;
  * later screen (the rule data model already exists and is exercised by the
  * seeded "Other organization type" question).
  *
- * Question and option mutations (including reordering questions, but not
- * sections) refuse to save while {@see RegistrationStatus::answersLocked()} —
+ * Question and option mutations (including reordering questions, and a
+ * section's title, but not the order of sections) refuse to save while
+ * {@see RegistrationStatus::answersLocked()} —
  * the views render every such control disabled, and these guards are the
  * server-side backstop for a direct request.
  */
@@ -105,22 +106,36 @@ class QuestionBuilderController extends Controller
         return redirect()->route($this->routeName('admin.questions'));
     }
 
-    /** Save a section's title and settings. */
+    /**
+     * Save a section's title and settings. Description and enabled are left
+     * as they are unless sent — the builder's inline title field posts the
+     * title alone, and enabled is the visibility editor's to set.
+     */
     public function updateSection(Request $request, Section $section)
     {
+        if ($this->status->answersLocked()) {
+            return $this->back('editor_locked');
+        }
+
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
             'enabled' => ['boolean'],
         ]);
 
-        $section->update([
-            'title' => $data['title'],
-            'description' => $data['description'] ?? null,
-            'enabled' => $request->boolean('enabled'),
-        ]);
+        $section->title = $data['title'];
 
-        return redirect()->route($this->routeName('admin.questions'));
+        if ($request->has('description')) {
+            $section->description = $data['description'] ?? null;
+        }
+
+        if ($request->has('enabled')) {
+            $section->enabled = $request->boolean('enabled');
+        }
+
+        $section->save();
+
+        return redirect(route($this->routeName('admin.questions')).'#section-'.$section->id);
     }
 
     /** Remove a section and its questions. */

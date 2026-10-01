@@ -45,7 +45,18 @@
                         <div class="card-header section-handle d-flex flex-wrap justify-content-between align-items-center iccm-gap iccm-drag">
                             <span>
                                 <span class="text-muted mr-2">⠿</span>
-                                <strong>{{ $section->title }}</strong>
+                                {{-- The title is edited where it is displayed; while locked it
+                                     is just the text, with no read-only field standing in. --}}
+                                @if ($locked)
+                                    <strong>{{ $section->title }}</strong>
+                                @else
+                                    <form method="POST" action="{{ route($routeName('admin.sections.update'), $section) }}" class="js-section-title d-inline-flex align-items-center iccm-gap">
+                                        @csrf @method('PUT')
+                                        <input type="text" name="title" value="{{ $section->title }}" maxlength="255" required
+                                               class="form-control form-control-sm section-title-input" aria-label="{{ __('registration::admin.section_title') }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-primary">{{ __('registration::admin.save') }}</button>
+                                    </form>
+                                @endif
                                 @if ($section->is_system)<span class="badge badge-warning ml-1">{{ __('registration::admin.badge_system') }}</span>@endif
                                 {{-- Kept in the DOM (d-none when off) so the editor modals can toggle them on close. --}}
                                 <span class="badge badge-dark ml-1{{ $section->isHidden() ? '' : ' d-none' }}" data-badge="hidden">{{ __('registration::admin.badge_hidden') }}</span>
@@ -189,10 +200,14 @@
                 });
             }
 
-            // Reorder the sections (steps) themselves.
+            // Reorder the sections (steps) themselves. The handle is the whole
+            // card header, so the inline title form is filtered out of it —
+            // preventOnFilter off leaves the field its own click and selection.
             new Sortable(cont, {
                 draggable: '.section',
                 handle: '.section-handle',
+                filter: '.js-section-title',
+                preventOnFilter: false,
                 animation: 150,
                 onEnd: save
             });
