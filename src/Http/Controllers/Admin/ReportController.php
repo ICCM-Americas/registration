@@ -41,7 +41,7 @@ class ReportController extends Controller
     public function index()
     {
         return view('registration::admin.reports.index', [
-            'reports' => Report::orderBy('position')->orderBy('name')->get(),
+            'reports' => Report::orderBy('name')->get(),
         ]);
     }
 

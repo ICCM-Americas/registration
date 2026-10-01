@@ -80,6 +80,19 @@ class ReportControllerTest extends TestCase
             ->assertSee(route('registration.admin.reports.edit', $report));
     }
 
+    #[TestDox('the list is sorted alphabetically by name')]
+    public function test_the_list_is_sorted_alphabetically_by_name(): void
+    {
+        $this->report(['name' => 'Special Needs', 'position' => 10]);
+        $this->report(['name' => 'Attendee List', 'position' => 30]);
+        $this->report(['name' => 'Kitchen Crew', 'position' => 0]);
+
+        $this->actingAs($this->makeUser())
+            ->get(route('registration.admin.reports'))
+            ->assertOk()
+            ->assertSeeInOrder(['Attendee List', 'Kitchen Crew', 'Special Needs']);
+    }
+
     #[TestDox('the numeric report routes never capture the console literals')]
     public function test_the_numeric_report_routes_never_capture_the_console_literals(): void
     {
