@@ -481,7 +481,6 @@ class ReportControllerTest extends TestCase
         preg_match('/<script type="application\/json" id="report-pdf-data">(.*?)<\/script>/s', $response->getContent(), $match);
         $payload = json_decode($match[1], true, 512, JSON_THROW_ON_ERROR);
         $this->assertSame(['Name'], $payload['head']);
-        $this->assertSame('portrait', $payload['orientation']);
         $this->assertStringContainsString('Roster', $payload['title']);
         // The final payload row is the count footer.
         $this->assertSame(__('registration::admin.report_count_label').': 1', end($payload['rows'])[0]);
@@ -518,21 +517,32 @@ class ReportControllerTest extends TestCase
         $this->assertNull($blankPayload['footer']);
     }
 
-    #[TestDox('a report with four or more columns exports landscape')]
-    public function test_a_report_with_four_or_more_columns_exports_landscape(): void
+    #[DataProvider('paperDefaults')]
+    #[TestDox('the pdf options dialog preselects portrait and the locale appropriate paper size')]
+    public function test_the_pdf_options_dialog_preselects_portrait_and_the_locale_paper(string $locale, string $paper, string $otherPaper): void
     {
         $report = $this->report();
-        foreach (ReportField::cases() as $position => $field) {
-            ReportColumn::factory()->builtin($field)->create(['report_id' => $report->id, 'position' => $position]);
-        }
+        ReportColumn::factory()->builtin(ReportField::Email)->create(['report_id' => $report->id]);
+        app()->setLocale($locale);
 
-        $content = $this->actingAs($this->makeUser())
+        $this->actingAs($this->makeUser())
             ->get(route('registration.admin.reports.show', $report))
             ->assertOk()
-            ->getContent();
+            ->assertSee('id="pdf-options-modal"', false)
+            ->assertSee(__('registration::admin.pdf_options_title'))
+            ->assertSee('value="portrait" checked', false)
+            ->assertDontSee('value="landscape" checked', false)
+            ->assertSee('value="'.$paper.'" checked', false)
+            ->assertDontSee('value="'.$otherPaper.'" checked', false);
+    }
 
-        preg_match('/<script type="application\/json" id="report-pdf-data">(.*?)<\/script>/s', $content, $match);
-        $this->assertSame('landscape', json_decode($match[1], true)['orientation']);
+    /** Each locale's default paper size, and the one left unselected. */
+    public static function paperDefaults(): array
+    {
+        return [
+            'US English' => ['en', 'letter', 'a4'],
+            'UK English' => ['en-GB', 'a4', 'letter'],
+        ];
     }
 
     #[TestDox('the report page shows the empty state with no rows')]

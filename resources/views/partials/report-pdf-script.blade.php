@@ -1,13 +1,13 @@
 {{-- The standard client-side report PDF export (wired to the report
      toolbar's Export PDF button). Renders the payload's rows as one table.
-     The payload's optional orientation and lastColumnWidth keys let a report
-     use landscape or pin its trailing column's width. --}}
+     The options argument (from the toolbar's PDF options dialog) picks the
+     orientation and paper. --}}
 <script type="application/json" id="report-pdf-data">@json($pdfPayload)</script>
 <script nonce="{{ $cspNonce ?? '' }}">
-    window.conferenceReportPdf = async function () {
+    window.conferenceReportPdf = async function (options) {
         const data = JSON.parse(document.getElementById('report-pdf-data').textContent);
         const margin = conferencePdf.PAGE_MARGIN;
-        const doc = await conferencePdf.createDoc({ format: data.paper, orientation: data.orientation });
+        const doc = await conferencePdf.createDoc({ format: options.paper, orientation: options.orientation });
         const width = doc.internal.pageSize.getWidth() - margin * 2;
         let y = await conferencePdf.drawHeader(doc, { title: data.title });
 
@@ -19,7 +19,7 @@
             y += lines.length * 5 + 4;
         }
 
-        const options = {
+        const tableOptions = {
             margin: { left: margin, right: margin, top: margin, bottom: margin },
             theme: 'plain',
             styles: { font: 'DejaVuSans', fontSize: 11, cellPadding: 2, textColor: conferencePdf.branding.text },
@@ -29,10 +29,7 @@
             head: [data.head],
             body: data.rows,
         };
-        if (data.lastColumnWidth) {
-            options.columnStyles = { [data.head.length - 1]: { cellWidth: data.lastColumnWidth } };
-        }
-        doc.autoTable(options);
+        doc.autoTable(tableOptions);
 
         // The report's own admin-authored footer, shown once beneath the table.
         if (data.footer) {

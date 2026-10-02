@@ -8,6 +8,7 @@
     @include('registration::partials.report-toolbar', [
         'reportName' => 'defined',
         'csvUrl' => route($routeName('admin.reports.csv'), $report),
+        'pdfPaper' => $pdfPaper,
     ])
 
 

@@ -191,7 +191,7 @@ class ReportController extends Controller
         return $this->backToEditor($report);
     }
 
-    /** The report page itself: on-screen table plus the PDF payload. */
+    /** The report page itself: on-screen table, the PDF payload, and the default paper size. */
     public function show(Report $report, ReportRunner $runner)
     {
         $headers = $runner->headers($report);
@@ -202,6 +202,7 @@ class ReportController extends Controller
             'headers' => $headers,
             'rows' => $rows,
             'pdfPayload' => $this->pdfPayload($report, $headers, $rows),
+            'pdfPaper' => $this->pdfPaperSize(),
         ]);
     }
 
@@ -243,9 +244,6 @@ class ReportController extends Controller
 
         return [
             'filename' => Str::slug($report->name),
-            'paper' => $this->pdfPaperSize(),
-            // Wide tables read better sideways; short ones save paper upright.
-            'orientation' => count($headers) > 3 ? 'landscape' : 'portrait',
             'title' => trim(($edition->name() ?? app(BrandingProvider::class)->siteName()).' '.$edition->year())
                 .' — '.$report->name,
             'head' => $headers,

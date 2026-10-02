@@ -77,12 +77,14 @@ class ReportPagesTest extends TestCase
     public function test_every_report_offers_a_pdf_export_button_and_a_csv_export(string $route): void
     {
         // The PDF is generated client-side: the page carries the export
-        // button, its own generator, and the shared jsPDF loader.
+        // button, its own generator, and the shared jsPDF loader. Its layout
+        // is fixed, so it exports without the PDF options dialog.
         $this->actingAs($this->makeUser())
             ->get(route($route))
             ->assertOk()
             ->assertSee(__('registration::admin.export_pdf'))
-            ->assertSee('unpkg.com/jspdf', false);
+            ->assertSee('unpkg.com/jspdf', false)
+            ->assertDontSee('id="pdf-options-modal"', false);
 
         $this->assertFalse(Route::has($route.'.pdf'), 'The server-side PDF route is gone.');
 
