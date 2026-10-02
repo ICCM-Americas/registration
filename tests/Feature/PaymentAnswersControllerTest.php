@@ -44,6 +44,17 @@ class PaymentAnswersControllerTest extends TestCase
             ->assertSee('value="Ada"', false);
     }
 
+    #[TestDox('edit answers form carries the question a search result asked to highlight')]
+    public function test_edit_answers_form_carries_the_question_to_highlight(): void
+    {
+        $registrant = $this->registrantWithAnswers([]);
+
+        $this->actingAs($this->makeUser())
+            ->get(route('registration.admin.payments.answers.edit', [$registrant->id, 'highlight' => 'lastname']))
+            ->assertOk()
+            ->assertSee('data-highlight="lastname"', false);
+    }
+
     #[TestDox('saving an answer persists it through the real answer store')]
     public function test_saving_an_answer_persists_it_through_the_real_answer_store(): void
     {

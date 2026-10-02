@@ -364,7 +364,7 @@ class QuestionBuilderControllerTest extends TestCase
         $this->assertSame(['f', 'm'], $gender->options()->orderBy('position')->pluck('value')->all());
     }
 
-    #[TestDox('edit question form links each option to its visibility editor')]
+    #[TestDox('edit question form links each option to its visibility editor and anchors its row')]
     public function test_edit_question_form_links_each_option_to_its_visibility_editor(): void
     {
         $admin = $this->makeUser();
@@ -374,7 +374,8 @@ class QuestionBuilderControllerTest extends TestCase
         $this->actingAs($admin)
             ->get(route('registration.admin.questions.edit', $gender))
             ->assertOk()
-            ->assertSee(route('registration.admin.options.visibility', $male));
+            ->assertSee(route('registration.admin.options.visibility', $male))
+            ->assertSee('id="option-'.$male->id.'"', false);
     }
 
     #[TestDox('store option persists the row and returns its visibility url')]

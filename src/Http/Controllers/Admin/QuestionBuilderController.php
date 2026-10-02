@@ -213,6 +213,7 @@ class QuestionBuilderController extends Controller
             'types' => QuestionType::cases(),
             'optionRows' => $this->optionRows($question),
             'locked' => $this->status->answersLocked(),
+            'returnTo' => $this->searchReturn(request()),
         ]);
     }
 
@@ -231,7 +232,13 @@ class QuestionBuilderController extends Controller
             $request->boolean('preview'),
         );
 
-        return $request->boolean('preview') ? response()->json(['changes' => $changes]) : $this->toQuestion($question);
+        if ($request->boolean('preview')) {
+            return response()->json(['changes' => $changes]);
+        }
+
+        $return = $this->searchReturn($request);
+
+        return $return ? redirect($return) : $this->toQuestion($question);
     }
 
     /**

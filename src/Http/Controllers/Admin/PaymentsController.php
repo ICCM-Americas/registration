@@ -79,7 +79,8 @@ class PaymentsController extends Controller
             'def' => Currency::def(),
             'action' => route($this->routeName('admin.payments.answers.update'), $user),
             'previewAction' => route($this->routeName('admin.payments.answers.preview'), $user),
-            'backAction' => route($this->routeName('admin.payments.show'), $user),
+            'backAction' => $this->searchReturn(request()) ?? route($this->routeName('admin.payments.show'), $user),
+            'returnTo' => $this->searchReturn(request()),
             'baselineTotal' => $registrant->cost(),
             'baselineFormatted' => $this->formattedTotal($registrant->cost()),
         ]);
@@ -92,8 +93,7 @@ class PaymentsController extends Controller
         $validated = $validator->validate(QuestionScope::Participant, $request->all());
         $store->store(QuestionScope::Participant, $registrant, $validated);
 
-        return redirect()->route($this->routeName('admin.payments.show'), $user)
-            ->with('payments_status', __('registration::admin.payments_answers_updated'));
+        return $this->answersSaved($request, $user);
     }
 
     /** Recompute the registrant's total cost against a candidate (not-yet-saved) set of Participant-scope answers, for the cost-change modal. */
@@ -132,7 +132,8 @@ class PaymentsController extends Controller
             'def' => Currency::def(),
             'action' => route($this->routeName('admin.payments.guests.answers.update'), [$user, $guest]),
             'previewAction' => route($this->routeName('admin.payments.guests.answers.preview'), [$user, $guest]),
-            'backAction' => route($this->routeName('admin.payments.show'), $user),
+            'backAction' => $this->searchReturn(request()) ?? route($this->routeName('admin.payments.show'), $user),
+            'returnTo' => $this->searchReturn(request()),
             'baselineTotal' => $registrant->cost(),
             'baselineFormatted' => $this->formattedTotal($registrant->cost()),
         ]);
@@ -147,8 +148,7 @@ class PaymentsController extends Controller
         $validated = $validator->validate(QuestionScope::Guest, $request->all(), ['guest_type' => $guest->type->value]);
         $store->store(QuestionScope::Guest, $guest, $validated);
 
-        return redirect()->route($this->routeName('admin.payments.show'), $user)
-            ->with('payments_status', __('registration::admin.payments_answers_updated'));
+        return $this->answersSaved($request, $user);
     }
 
     /** Recompute the owning registrant's total cost against a candidate set of one guest's answers, for the cost-change modal. */
@@ -191,6 +191,17 @@ class PaymentsController extends Controller
         ])->save();
 
         return redirect()->back()->with('payments_status', __('registration::admin.payments_payment_updated'));
+    }
+
+    /** After saving answers: back to the search results they were opened from, else the registrant's page. */
+    private function answersSaved(Request $request, int $user)
+    {
+        if ($return = $this->searchReturn($request)) {
+            return redirect($return);
+        }
+
+        return redirect()->route($this->routeName('admin.payments.show'), $user)
+            ->with('payments_status', __('registration::admin.payments_answers_updated'));
     }
 
     /** The host user behind a Payments route's {user} segment — the host's user model is configurable, so it can't be implicitly route-bound. */

@@ -12,7 +12,7 @@
     so anything it carried itself would be duplicated into the DOM on every
     add.
 --}}
-<div class="p-2 mb-2 border rounded js-badge-row column iccm-row iccm-row-wide iccm-row-tight" data-column-id="{{ $column->id }}">
+<div id="column-{{ $column->id }}" class="p-2 mb-2 border rounded js-badge-row column iccm-row iccm-row-wide iccm-row-tight" data-column-id="{{ $column->id }}">
     <span class="text-muted column-drag iccm-drag">⠿</span>
 
     <strong class="report-column-heading">{{ $column->heading() }}</strong>

@@ -2,15 +2,16 @@
 <nav class="iccm-toolbar">
     <a href="{{ route($routeName('admin.dashboard')) }}" class="btn btn-primary">{{ __('registration::admin.nav_dashboard') }}</a>
     <a href="{{ route($routeName('admin.closed')) }}" class="btn btn-primary">{{ __('registration::admin.nav_closed_page') }}</a>
-    <a href="{{ route($routeName('admin.home_card_messages')) }}" class="btn btn-primary">{{ __('registration::admin.nav_home_card_messages') }}</a>
     <a href="{{ route($routeName('admin.emails')) }}" class="btn btn-primary">{{ __('registration::admin.nav_emails') }}</a>
+    <a href="{{ route($routeName('admin.home_card_messages')) }}" class="btn btn-primary">{{ __('registration::admin.nav_home_card_messages') }}</a>
     <a href="{{ route($routeName('admin.steps')) }}" class="btn btn-primary">{{ __('registration::admin.nav_landing_page') }}</a>
     <a href="{{ route($routeName('admin.rooms')) }}" class="btn btn-primary">{{ __('registration::admin.nav_lodging') }}</a>
     <a href="{{ route($routeName('admin.logistics')) }}" class="btn btn-primary">{{ __('registration::admin.nav_logistics') }}</a>
-    <a href="{{ route($routeName('admin.pricing')) }}" class="btn btn-primary">{{ __('registration::admin.nav_pricing') }}</a>
     <a href="{{ route($routeName('admin.payments')) }}" class="btn btn-primary">{{ __('registration::admin.nav_payments') }}</a>
+    <a href="{{ route($routeName('admin.pricing')) }}" class="btn btn-primary">{{ __('registration::admin.nav_pricing') }}</a>
     <a href="{{ route($routeName('admin.questions')) }}" class="btn btn-primary">{{ __('registration::admin.nav_questions') }}</a>
     <a href="{{ route($routeName('admin.reports')) }}" class="btn btn-primary">{{ __('registration::admin.nav_reports') }}</a>
+    <a href="{{ route($routeName('admin.search')) }}" class="btn btn-primary">{{ __('registration::admin.nav_search') }}</a>
     <a href="{{ route($routeName('admin.variables')) }}" class="btn btn-primary">{{ __('registration::admin.nav_variables') }}</a>
     {{-- Secondary on purpose: an action (test drive the wizard), not a console page. --}}
     <a href="{{ route($routeName('admin.test')) }}" class="btn btn-secondary">{{ __('registration::admin.nav_test_registration') }}</a>

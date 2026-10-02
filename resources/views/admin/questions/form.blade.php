@@ -20,6 +20,9 @@
 
     <form method="POST" action="{{ $question->exists ? route($routeName('admin.questions.update'), $question) : route($routeName('admin.questions.store')) }}"{!! $question->exists ? ' class="js-answer-sync"' : '' !!}>
         @csrf
+        @if ($returnTo ?? null)
+            <input type="hidden" name="_return" value="{{ $returnTo }}">
+        @endif
         @if ($question->exists) @method('PUT') @endif
 
         <div class="form-group">
@@ -125,9 +128,10 @@
         @endunless
 
         <button type="submit" class="btn btn-primary" {{ $textsLocked ? 'disabled' : '' }}>{{ __('registration::admin.save') }}</button>
-        {{-- The anchor returns to roughly where this question sits on the list:
-             its own row once saved, otherwise its section. --}}
-        <a href="{{ route($routeName('admin.questions')) }}#{{ $question->exists ? 'question-'.$question->id : 'section-'.$question->section_id }}" class="btn btn-danger">{{ __('registration::admin.cancel') }}</a>
+        {{-- Back to the search results it was opened from; otherwise the anchor
+             returns to roughly where this question sits on the list: its own
+             row once saved, otherwise its section. --}}
+        <a href="{{ ($returnTo ?? null) ?: route($routeName('admin.questions')).'#'.($question->exists ? 'question-'.$question->id : 'section-'.$question->section_id) }}" class="btn btn-danger">{{ __('registration::admin.cancel') }}</a>
         {{-- Editing visibility/translations needs a saved row; the shared modal
              (same one the console list uses) opens over AJAX from these hrefs.
              Both stay editable even while locked. --}}

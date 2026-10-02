@@ -16,6 +16,9 @@
 
     <form method="POST" action="{{ $report->exists ? route($routeName('admin.reports.update'), $report) : route($routeName('admin.reports.store')) }}">
         @csrf
+        @if ($returnTo ?? null)
+            <input type="hidden" name="_return" value="{{ $returnTo }}">
+        @endif
         @if ($report->exists)
             @method('PUT')
         @endif
@@ -67,7 +70,7 @@
                 </div>
 
                 <button type="submit" class="btn btn-primary">{{ __('registration::admin.save') }}</button>
-                <a href="{{ route($routeName('admin.reports')) }}" class="btn btn-outline-secondary">{{ __('registration::admin.cancel') }}</a>
+                <a href="{{ ($returnTo ?? null) ?: route($routeName('admin.reports')) }}" class="btn btn-outline-secondary">{{ __('registration::admin.cancel') }}</a>
             </div>
         </div>
     </form>

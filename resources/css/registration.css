@@ -215,3 +215,17 @@
        cards butt up against each other for cutting. */
     .badge-sheet { gap: 0; }
 }
+
+.reg-search-hit { min-width: 0; flex: 1 1 auto; }
+.reg-search-snippet { overflow-wrap: anywhere; }
+.reg-search-target { outline: 3px solid #ffc107; outline-offset: 4px; border-radius: .25rem; }
+.reg-search-bar { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.reg-search-bar input { flex: 1 1 10rem; width: auto; min-width: 0; }
+.reg-search-choices { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem 1.5rem; }
+.reg-search-category { display: grid; grid-template-columns: 9rem minmax(0, 1fr); align-items: start; gap: .25rem 1rem; padding: .5rem 0; border-top: 1px solid #e2e8f0; }
+.reg-search-choices .iccm-checkbox-row, .reg-search-category > .iccm-checkbox-row, .reg-search-choice { margin: 0; font-weight: 400; white-space: nowrap; }
+.reg-search-check { width: 1.2em; height: 1.2em; flex-shrink: 0; margin-top: .2rem; }
+@media (max-width: 576px) {
+    .reg-search-category { grid-template-columns: minmax(0, 1fr); }
+    .reg-search-category .reg-search-choices { padding-left: 1.7rem; }
+}

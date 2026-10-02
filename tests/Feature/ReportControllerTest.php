@@ -246,6 +246,7 @@ class ReportControllerTest extends TestCase
 
         $column = $report->columns()->sole();
         $this->assertStringContainsString('data-column-id="'.$column->id.'"', $response->json('html'));
+        $this->assertStringContainsString('id="column-'.$column->id.'"', $response->json('html'));
     }
 
     #[TestDox('a blank custom column requires a header')]

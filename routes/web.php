@@ -23,6 +23,8 @@ use ConferenceTools\Registration\Http\Controllers\Admin\ReportController;
 use ConferenceTools\Registration\Http\Controllers\Admin\ReportVisibilityController;
 use ConferenceTools\Registration\Http\Controllers\Admin\RoomAssignmentController;
 use ConferenceTools\Registration\Http\Controllers\Admin\RoomController;
+use ConferenceTools\Registration\Http\Controllers\Admin\SearchController;
+use ConferenceTools\Registration\Http\Controllers\Admin\SearchRegistrationController;
 use ConferenceTools\Registration\Http\Controllers\Admin\SectionVisibilityController;
 use ConferenceTools\Registration\Http\Controllers\Admin\ShuttleScheduleController;
 use ConferenceTools\Registration\Http\Controllers\Admin\TestGroupMemberController;
@@ -436,4 +438,10 @@ Route::middleware(config('registration.admin_middleware'))
         Route::get('translations/{type}/{id}', [TranslationController::class, 'edit'])->name($namePrefix.'admin.translations');
         Route::post('translations/{type}/{id}', [TranslationController::class, 'save'])->name($namePrefix.'admin.translations.save');
         Route::delete('translations/{type}/{id}/{locale}', [TranslationController::class, 'destroyLocale'])->name($namePrefix.'admin.translations.locale.destroy');
+
+        // Search: questions, rules, reports, and answers, plus deleting the
+        // registrations behind answer hits.
+        Route::get('search', [SearchController::class, 'index'])->name($namePrefix.'admin.search');
+        Route::get('search/registrations/preview', [SearchRegistrationController::class, 'preview'])->name($namePrefix.'admin.search.registrations.preview');
+        Route::delete('search/registrations', [SearchRegistrationController::class, 'destroy'])->name($namePrefix.'admin.search.registrations.destroy');
     });

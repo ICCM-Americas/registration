@@ -5,7 +5,7 @@
 @endsection
 
 @section('content')
-    <p><a href="{{ $backAction }}">&larr; {{ __('registration::admin.payments_back') }}</a></p>
+    <p><a href="{{ $backAction }}">&larr; {{ $returnTo ? __('registration::admin.search_back') : __('registration::admin.payments_back') }}</a></p>
 
     <h1>{{ __('registration::admin.payments_edit_title', ['name' => $ownerName]) }}</h1>
     <p class="text-muted">{{ __('registration::admin.payments_edit_intro') }}</p>
@@ -20,10 +20,13 @@
         </div>
     @endif
 
-    <form method="POST" action="{{ $action }}" id="js-answers-form"
+    <form method="POST" action="{{ $action }}" id="js-answers-form" data-highlight="{{ is_string(request()->query('highlight')) ? request()->query('highlight') : '' }}"
         data-preview-url="{{ $previewAction }}" data-baseline-total="{{ $baselineTotal }}" data-baseline-formatted="{{ $baselineFormatted }}">
         @csrf
         @method('PUT')
+        @if ($returnTo ?? null)
+            <input type="hidden" name="_return" value="{{ $returnTo }}">
+        @endif
 
         @foreach ($sections as $section)
             @include('registration::questions.section', compact('section', 'answers', 'evaluator', 'def'))
@@ -46,6 +49,13 @@
         var newTotalEl = modal.querySelector('.js-cost-new');
         var snapshot = null; // { wrapper, html }: the priced question last interacted with, before its change
         var pending = null; // { total, formatted }: the previewed total awaiting OK/Cancel
+
+        // Arriving from a search result: bring the matched question into view.
+        var highlighted = form.dataset.highlight && form.querySelector('[data-question="' + CSS.escape(form.dataset.highlight) + '"]');
+        if (highlighted) {
+            highlighted.classList.add('reg-search-target');
+            highlighted.scrollIntoView({ block: 'center' });
+        }
 
         // Mirrors the live checked/selected DOM property back onto the
         // matching attribute, so a plain innerHTML string snapshot (taken

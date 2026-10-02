@@ -73,6 +73,7 @@ class ReportController extends Controller
             'builtins' => ReportField::cases(),
             'questionGroups' => $this->questionGroups(),
             'displays' => $this->displayChoices(),
+            'returnTo' => $this->searchReturn(request()),
         ]);
     }
 
@@ -80,6 +81,10 @@ class ReportController extends Controller
     public function update(Request $request, Report $report)
     {
         $report->update($this->validated($request));
+
+        if ($return = $this->searchReturn($request)) {
+            return redirect($return);
+        }
 
         return redirect()
             ->route($this->routeName('admin.reports.edit'), $report)

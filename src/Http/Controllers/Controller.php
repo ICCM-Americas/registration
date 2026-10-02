@@ -7,6 +7,7 @@ use ConferenceTools\Registration\Services\CsvFormula;
 use ConferenceTools\Registration\Services\CsvZipExport;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Foundation\Validation\ValidatesRequests;
+use Illuminate\Http\Request;
 use Illuminate\Routing\Controller as BaseController;
 use Illuminate\Support\Collection;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -21,6 +22,19 @@ abstract class Controller extends BaseController
     protected function routeName(string $name): string
     {
         return config('registration.route_name_prefix').$name;
+    }
+
+    /**
+     * The admin search results an editor was opened from (the "_return"
+     * input), so Save and Cancel can go back to them — only a URL of the
+     * search page itself, never an arbitrary redirect target.
+     */
+    protected function searchReturn(Request $request): ?string
+    {
+        $url = $request->input('_return');
+        $search = route($this->routeName('admin.search'));
+
+        return is_string($url) && ($url === $search || str_starts_with($url, $search.'?')) ? $url : null;
     }
 
     /** The PDF-export paper size to print easily on: US letter for a US locale, A4 otherwise. */

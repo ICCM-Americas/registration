@@ -29,7 +29,7 @@
 ])
 @php($textOnly = $textOnly ?? false)
 @php($editing = $row['value'] === '')
-<li class="list-group-item option-row js-badge-row d-flex flex-wrap align-items-center py-2 iccm-gap">
+<li @if ($row['id']) id="option-{{ $row['id'] }}" @endif class="list-group-item option-row js-badge-row d-flex flex-wrap align-items-center py-2 iccm-gap">
     <input type="hidden" name="options[{{ $index }}][id]" value="{{ $row['id'] }}">
     <span class="text-muted option-drag {{ $locked ? 'iccm-drag-locked' : 'iccm-drag' }}">⠿</span>
 
