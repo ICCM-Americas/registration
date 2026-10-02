@@ -7,10 +7,18 @@
 @section('content')
     @include('registration::partials.admin-nav')
 
+    {{-- A locked question still takes edits to its texts; only adding a
+         question is locked outright. --}}
+    @php($textOnly = $locked && $question->exists)
+    @php($textsLocked = $locked && ! $question->exists)
 
-    <h1>{{ $question->exists ? ($locked ? __('registration::admin.view') : __('registration::admin.edit')) : __('registration::admin.add_question') }}</h1>
+    <h1>{{ $question->exists ? __('registration::admin.edit') : __('registration::admin.add_question') }}</h1>
 
-    <form method="POST" action="{{ $question->exists ? route($routeName('admin.questions.update'), $question) : route($routeName('admin.questions.store')) }}">
+    @if ($textOnly)
+        <div class="alert alert-info">{{ __('registration::admin.questions_texts_only') }}</div>
+    @endif
+
+    <form method="POST" action="{{ $question->exists ? route($routeName('admin.questions.update'), $question) : route($routeName('admin.questions.store')) }}"{!! $question->exists ? ' class="js-answer-sync"' : '' !!}>
         @csrf
         @if ($question->exists) @method('PUT') @endif
 
@@ -32,7 +40,7 @@
 
         <div class="form-group">
             <label for="label">{{ __('registration::admin.question_label') }}</label>
-            <textarea name="label" id="label" rows="3" maxlength="4096" class="form-control @error('label') is-invalid @enderror" required {{ $locked ? 'disabled' : '' }}>{{ old('label', $question->label) }}</textarea>
+            <textarea name="label" id="label" rows="3" maxlength="4096" class="form-control @error('label') is-invalid @enderror" required {{ $textsLocked ? 'disabled' : '' }}>{{ old('label', $question->label) }}</textarea>
             <small class="form-text text-muted">{{ __('registration::admin.question_label_hint') }}</small>
             <small class="form-text text-muted"><span id="label-count">0</span> / <span id="label-max"></span> {{ __('registration::admin.question_label_characters') }}</small>
             @error('label')<span class="invalid-feedback">{{ $message }}</span>@enderror
@@ -74,7 +82,7 @@
 
         <div class="form-group">
             <label for="help_text">{{ __('registration::admin.question_help') }}</label>
-            <textarea name="help_text" id="help_text" rows="3" maxlength="1000" class="form-control" {{ $locked ? 'disabled' : '' }}>{{ old('help_text', $question->help_text) }}</textarea>
+            <textarea name="help_text" id="help_text" rows="3" maxlength="1000" class="form-control" {{ $textsLocked ? 'disabled' : '' }}>{{ old('help_text', $question->help_text) }}</textarea>
             <small class="form-text text-muted">{{ __('registration::admin.question_help_hint') }}</small>
         </div>
 
@@ -103,26 +111,26 @@
                 <label id="options_label">{{ __('registration::admin.question_options') }}</label>
                 <ul class="list-group mb-2" id="options-list">
                     @foreach ($optionRows as $index => $row)
-                        @include('registration::admin.questions.option-row', ['index' => $index, 'row' => $row, 'locked' => $locked])
+                        @include('registration::admin.questions.option-row', ['index' => $index, 'row' => $row, 'locked' => $locked, 'textOnly' => $textOnly])
                     @endforeach
                 </ul>
+                @error('options')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                 <button type="button" id="option-add" class="btn btn-sm btn-outline-secondary" {{ $locked ? 'disabled' : '' }}>{{ __('registration::admin.option_add') }}</button>
-                <small class="form-text text-muted">{{ __('registration::admin.question_options_hint') }}</small>
+                <small class="form-text text-muted">{{ $textOnly ? __('registration::admin.question_options_texts_hint') : __('registration::admin.question_options_hint') }}</small>
             </fieldset>
 
             <template id="option-row-template">
-                @include('registration::admin.questions.option-row', ['index' => '__INDEX__', 'row' => null, 'locked' => $locked])
+                @include('registration::admin.questions.option-row', ['index' => '__INDEX__', 'row' => null, 'locked' => $locked, 'textOnly' => false])
             </template>
         @endunless
 
-        <button type="submit" class="btn btn-primary" {{ $locked ? 'disabled' : '' }}>{{ __('registration::admin.save') }}</button>
+        <button type="submit" class="btn btn-primary" {{ $textsLocked ? 'disabled' : '' }}>{{ __('registration::admin.save') }}</button>
         {{-- The anchor returns to roughly where this question sits on the list:
              its own row once saved, otherwise its section. --}}
         <a href="{{ route($routeName('admin.questions')) }}#{{ $question->exists ? 'question-'.$question->id : 'section-'.$question->section_id }}" class="btn btn-danger">{{ __('registration::admin.cancel') }}</a>
         {{-- Editing visibility/translations needs a saved row; the shared modal
              (same one the console list uses) opens over AJAX from these hrefs.
-             These stay enabled even while locked — the modals themselves render
-             read-only. --}}
+             Both stay editable even while locked. --}}
         @if ($question->exists)
             <a href="{{ route($routeName('admin.questions.visibility'), $question) }}" class="btn btn-outline-secondary js-editor-link">{{ __('registration::admin.visibility') }}</a>
             <a href="{{ route($routeName('admin.translations'), ['question', $question->id]) }}" class="btn btn-outline-secondary js-editor-link">{{ __('registration::admin.translations') }}</a>
@@ -131,12 +139,14 @@
 
     @if ($question->exists)
         @include('registration::partials.editor-modal')
+        @include('registration::partials.answer-sync-modal')
     @endif
 
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
     <script nonce="{{ $cspNonce ?? '' }}">
         (function () {
             var locked = @json($locked);
+            var textsLocked = @json($textsLocked);
             var optionTypes = @json(collect($types)->filter->usesOptions()->pluck('value')->values());
             var placeholderTypes = @json(collect($types)->filter->usesPlaceholder()->pluck('value')->values());
             var typeSelect = document.getElementById('type');
@@ -163,12 +173,12 @@
             function toggleTypeFields() {
                 var options = optionTypes.indexOf(typeSelect.value) !== -1;
                 if (optionsGroup) {
-                    optionsGroup.disabled = !options || locked;
+                    optionsGroup.disabled = !options || textsLocked;
                     optionsGroup.style.display = options ? '' : 'none';
                 }
 
                 var placeholder = placeholderTypes.indexOf(typeSelect.value) !== -1;
-                placeholderInput.disabled = !placeholder || locked;
+                placeholderInput.disabled = !placeholder || textsLocked;
                 placeholderGroup.style.display = placeholder ? '' : 'none';
             }
 

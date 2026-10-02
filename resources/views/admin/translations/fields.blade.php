@@ -5,8 +5,7 @@
     input empty removes that translation (the fallback shows again).
 
     Expects: $items (Collection of translatable models), $locale (?string —
-    null for the "add a language" form, which starts empty), $locked (whether
-    every input below renders disabled).
+    null for the "add a language" form, which starts empty).
 --}}
 @php
     // Literal per-field labels (a concatenated lang key would not be seen by
@@ -39,9 +38,9 @@
         <div class="form-group">
             <label for="{{ $key }}-{{ $field }}-{{ $locale ?? 'new' }}">{{ $fieldLabels[$field] }}</label>
             @if (in_array($field, ['body', 'description', 'help_text'], true))
-                <textarea id="{{ $key }}-{{ $field }}-{{ $locale ?? 'new' }}" name="texts[{{ $key }}][{{ $field }}]" rows="3" class="form-control form-control-sm" {{ $locked ? 'disabled' : '' }}>{{ $current }}</textarea>
+                <textarea id="{{ $key }}-{{ $field }}-{{ $locale ?? 'new' }}" name="texts[{{ $key }}][{{ $field }}]" rows="3" class="form-control form-control-sm">{{ $current }}</textarea>
             @else
-                <input type="text" id="{{ $key }}-{{ $field }}-{{ $locale ?? 'new' }}" name="texts[{{ $key }}][{{ $field }}]" value="{{ $current }}" class="form-control form-control-sm" {{ $locked ? 'disabled' : '' }}>
+                <input type="text" id="{{ $key }}-{{ $field }}-{{ $locale ?? 'new' }}" name="texts[{{ $key }}][{{ $field }}]" value="{{ $current }}" class="form-control form-control-sm">
             @endif
             @if ($base !== null && $base !== '')
                 <small class="form-text text-muted">{{ $base }}</small>

@@ -40,14 +40,15 @@ use Illuminate\Database\Eloquent\Model;
  * whether the window has arrived.
  *
  * A fourth, independent condition — {@see answersLocked()} — governs whether
- * Questions, Options, their visibility rules, and their translations may be
- * edited at all: once registration is open, or any answer has ever been
+ * Questions and Options may be edited beyond their texts (which
+ * {@see AnswerTextSync} carries into stored answers, so they stay editable,
+ * as do visibility rules, so anything a text edit breaks can be fixed): once
+ * registration is open, or any answer has ever been
  * recorded, changing the form structure risks silently invalidating
- * already-collected data (a re-typed option value no longer matches what a
- * stored answer snapshot recorded, a re-priced option no longer matches what
- * was charged, etc.). This does not feed into {@see isOpen()} or {@see open()}
- * — it is purely consumed by the admin question/option/translation
- * controllers and their views. It is a global condition (any answer at all,
+ * already-collected data (a re-priced option no longer matches what was
+ * charged, a removed option leaves answers no form can show, etc.). This does
+ * not feed into {@see isOpen()} or {@see open()} — it is purely consumed by
+ * the admin question/option controllers and their views. It is a global condition (any answer at all,
  * not just an answer to the question being edited), since an option's value
  * or cost could be referenced by {@see VariableInterpolator} templates on
  * unrelated questions. The only way to unlock is to purge every answer (see
@@ -102,8 +103,8 @@ class RegistrationStatus
     }
 
     /**
-     * Whether Questions, Options, their visibility rules, and their
-     * translations are locked against admin edits (see the class docblock).
+     * Whether Questions and Options are locked against admin edits other
+     * than their texts (see the class docblock).
      */
     public function answersLocked(): bool
     {

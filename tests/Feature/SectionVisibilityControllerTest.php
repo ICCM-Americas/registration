@@ -198,12 +198,9 @@ class SectionVisibilityControllerTest extends TestCase
     }
 
     /**
-     * Sections are exempt from the answers-locked rule that governs Question
-     * and Option editing (see QuestionVisibilityControllerTest /
-     * QuestionOptionVisibilityControllerTest) — every test above already
-     * mutates through admin(), whose group seeds real answers, and passes
-     * regardless; this pins that down explicitly, including the editor's
-     * locked view data (always false for a section).
+     * Rules are never locked, for sections as for questions and options —
+     * every test above already mutates through admin(), whose group seeds
+     * real answers, and passes regardless; this pins that down explicitly.
      */
     #[TestDox('section mutations are never locked')]
     public function test_section_mutations_are_never_locked(): void

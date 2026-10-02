@@ -100,9 +100,8 @@
                                         <span class="badge badge-primary{{ $question->isTranslated() ? '' : ' d-none' }}" data-badge="translated">{{ __('registration::admin.badge_translated') }}</span>
                                     </span>
                                     <span class="d-inline-flex flex-wrap align-items-center iccm-gap">
-                                        {{-- Always a live link — while locked it opens the same
-                                             form read-only, so it's relabeled "View" rather than disabled. --}}
-                                        <a href="{{ route($routeName('admin.questions.edit'), $question) }}" class="btn btn-sm btn-outline-primary">{{ $locked ? __('registration::admin.view') : __('registration::admin.edit') }}</a>
+                                        {{-- Still "Edit" while locked: a question's texts stay editable. --}}
+                                        <a href="{{ route($routeName('admin.questions.edit'), $question) }}" class="btn btn-sm btn-outline-primary">{{ __('registration::admin.edit') }}</a>
                                         <a href="{{ route($routeName('admin.questions.visibility'), $question) }}" class="btn btn-sm btn-outline-secondary js-editor-link">{{ __('registration::admin.visibility') }}</a>
                                         <a href="{{ route($routeName('admin.translations'), ['question', $question->id]) }}" class="btn btn-sm btn-outline-secondary js-editor-link">{{ __('registration::admin.translations') }}</a>
                                         @unless ($question->is_system)
@@ -124,6 +123,7 @@
     </div>
 
     @include('registration::partials.editor-modal')
+    @include('registration::partials.answer-sync-modal')
 
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
     <script nonce="{{ $cspNonce ?? '' }}">

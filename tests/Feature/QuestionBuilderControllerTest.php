@@ -15,6 +15,7 @@ use ConferenceTools\Registration\Tests\Concerns\BuildsRegistrationData;
 use ConferenceTools\Registration\Tests\TestCase;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestDox;
 
 /** Feature tests for Question Builder Controller. */
@@ -751,21 +752,147 @@ class QuestionBuilderControllerTest extends TestCase
         $this->assertNull(Question::where('key', 'blocked_question')->first());
     }
 
-    #[TestDox('update question is blocked while locked')]
-    public function test_update_question_is_blocked_while_locked(): void
+    /**
+     * A locked submission for the accommodation question: new texts for the
+     * question and its hotel option, alongside structural changes the lock
+     * must ignore.
+     */
+    private function lockedAccommodationUpdate(Question $accommodation, array $extra = []): array
+    {
+        $hotel = $accommodation->options()->where('value', 'hotel')->first();
+        $none = $accommodation->options()->where('value', 'none')->first();
+
+        return $extra + [
+            'section_id' => Section::where('key', 'your-details')->first()->id,
+            'key' => 'lodging',
+            'type' => QuestionType::Text->value,
+            'required' => '0',
+            'label' => 'Lodging',
+            'help_text' => 'Pick one.',
+            'options' => [
+                ['id' => $hotel->id, 'value' => 'Hotel room', 'label' => 'Hotel room', 'description' => 'Shared', 'line' => 'x | y | 999'],
+                ['id' => $none->id, 'value' => 'none', 'label' => '', 'description' => ''],
+            ],
+        ];
+    }
+
+    #[TestDox('update question saves only texts while locked and updates stored answers')]
+    public function test_update_question_saves_only_texts_while_locked_and_updates_stored_answers(): void
     {
         $admin = $this->admin();
-        $gender = Question::where('key', 'gender')->first();
+        $accommodation = Question::where('key', 'accommodation')->first();
 
-        $this->actingAs($admin)->put(route('registration.admin.questions.update', $gender), [
-            'section_id' => $gender->section_id,
-            'key' => 'gender',
-            'label' => 'Changed while locked',
-            'type' => QuestionType::Radio->value,
-        ])->assertRedirect(route('registration.admin.questions'))
-            ->assertSessionHas('questions_error');
+        $this->actingAs($admin)
+            ->put(route('registration.admin.questions.update', $accommodation), $this->lockedAccommodationUpdate($accommodation))
+            ->assertRedirect(route('registration.admin.questions').'#question-'.$accommodation->id);
 
-        $this->assertNotSame('Changed while locked', $gender->fresh()->label);
+        $saved = $accommodation->fresh();
+        $this->assertSame(['Lodging', 'Pick one.'], [$saved->label, $saved->help_text]);
+        $this->assertSame(['accommodation', QuestionType::Radio, true, $accommodation->section_id], [$saved->key, $saved->type, $saved->required, $saved->section_id]);
+        $this->assertSame(
+            [['Hotel room', 'Hotel room', 'Shared', '100.00'], ['none', 'none', null, '0.00']],
+            $saved->options()->orderBy('position')->get()->map(fn ($o) => [$o->value, $o->label, $o->description, $o->cost])->all(),
+        );
+        $this->assertSame(['Hotel room'], $saved->answers()->pluck('value')->unique()->values()->all());
+    }
+
+    #[TestDox('a locked update preview counts the stored answers it would change without saving')]
+    public function test_a_locked_update_preview_counts_the_stored_answers_it_would_change_without_saving(): void
+    {
+        $admin = $this->admin();
+        $accommodation = Question::where('key', 'accommodation')->first();
+
+        $this->actingAs($admin)
+            ->put(route('registration.admin.questions.update', $accommodation), $this->lockedAccommodationUpdate($accommodation, ['preview' => '1']))
+            ->assertOk()
+            ->assertExactJson(['changes' => 2]);
+
+        $this->assertSame('Accommodation', $accommodation->fresh()->label);
+        $this->assertSame(['hotel'], $accommodation->answers()->pluck('value')->unique()->values()->all());
+    }
+
+    #[DataProvider('ignoredLockedRows')]
+    #[TestDox('a locked option row with a blank value or no matching option is ignored')]
+    public function test_a_locked_option_row_with_a_blank_value_or_no_matching_option_is_ignored(bool $known, string $value): void
+    {
+        $admin = $this->admin();
+        $accommodation = Question::where('key', 'accommodation')->first();
+        $hotel = $accommodation->options()->where('value', 'hotel')->first();
+
+        $this->actingAs($admin)->put(route('registration.admin.questions.update', $accommodation), [
+            'label' => 'Accommodation',
+            'options' => [['id' => $known ? $hotel->id : 999999, 'value' => $value, 'label' => 'Ignored']],
+        ])->assertRedirect();
+
+        $this->assertSame(['hotel', 'Hotel'], [$hotel->fresh()->value, $hotel->fresh()->label]);
+        $this->assertSame(2, $accommodation->options()->count());
+    }
+
+    /** Rows a locked save skips, for the data provider. */
+    public static function ignoredLockedRows(): array
+    {
+        return [
+            'blank value' => [true, ''],
+            'unknown option' => [false, 'Ritz'],
+        ];
+    }
+
+    #[TestDox('a locked update of a protected question saves its texts but never its options')]
+    public function test_a_locked_update_of_a_protected_question_saves_its_texts_but_never_its_options(): void
+    {
+        $admin = $this->admin();
+        $trigger = Question::where('key', Question::GUEST_TRIGGER_KEY)->firstOrFail();
+        $option = $trigger->options()->first();
+
+        $this->actingAs($admin)->put(route('registration.admin.questions.update', $trigger), [
+            'label' => 'Bringing anyone?',
+            'options' => [['id' => $option->id, 'value' => 'Renamed']],
+        ])->assertRedirect();
+
+        $this->assertSame('Bringing anyone?', $trigger->fresh()->label);
+        $this->assertNotSame('Renamed', $option->fresh()->value);
+    }
+
+    #[TestDox('a locked save swapping option values is refused with a message on the form')]
+    public function test_a_locked_save_swapping_option_values_is_refused_with_a_message_on_the_form(): void
+    {
+        $admin = $this->admin();
+        $accommodation = Question::where('key', 'accommodation')->first();
+        $hotel = $accommodation->options()->where('value', 'hotel')->first();
+        $none = $accommodation->options()->where('value', 'none')->first();
+        $edit = route('registration.admin.questions.edit', $accommodation);
+
+        $this->actingAs($admin)->from($edit)
+            ->put(route('registration.admin.questions.update', $accommodation), [
+                'label' => 'Accommodation',
+                'options' => [['id' => $hotel->id, 'value' => 'none'], ['id' => $none->id, 'value' => 'hotel']],
+            ])
+            ->assertRedirect($edit)
+            ->assertSessionHasErrors('options');
+
+        $this->assertSame(['hotel', 'none'], [$hotel->fresh()->value, $none->fresh()->value]);
+
+        $this->actingAs($admin)->get($edit)
+            ->assertOk()
+            ->assertSee(__('registration::admin.options_value_swap'));
+    }
+
+    #[TestDox('a failed locked save shows the submitted option texts again')]
+    public function test_a_failed_locked_save_shows_the_submitted_option_texts_again(): void
+    {
+        $admin = $this->admin();
+        $accommodation = Question::where('key', 'accommodation')->first();
+        $edit = route('registration.admin.questions.edit', $accommodation);
+
+        $this->actingAs($admin)->from($edit)
+            ->put(route('registration.admin.questions.update', $accommodation), $this->lockedAccommodationUpdate($accommodation, ['label' => '']))
+            ->assertRedirect($edit)
+            ->assertSessionHasErrors('label');
+
+        $this->actingAs($admin)->get($edit)
+            ->assertOk()
+            ->assertSee('name="options[0][value]" value="Hotel room"', false)
+            ->assertSee('— 100.00', false);
     }
 
     #[TestDox('destroy question is blocked while locked')]
@@ -857,14 +984,27 @@ class QuestionBuilderControllerTest extends TestCase
         $locked = $this->actingAs($admin)
             ->get(route('registration.admin.questions'))
             ->assertOk();
-        $locked->assertSee(__('registration::admin.view'));
+        $locked->assertSee(__('registration::admin.edit'));
+        $locked->assertSee('id="answer-sync-modal"', false);
         $locked->assertDontSee('action="'.route('registration.admin.sections.update', $section).'" class="js-section-title', false);
         $locked->assertSee('<strong>Your details</strong>', false);
 
+        // An existing question's texts stay editable; adding one stays locked.
         $gender = Question::where('key', 'gender')->first();
         $this->actingAs($admin)
             ->get(route('registration.admin.questions.edit', $gender))
             ->assertOk()
+            ->assertSee(__('registration::admin.questions_texts_only'))
+            ->assertSee('class="js-answer-sync"', false)
+            ->assertSee('name="label" id="label" rows="3" maxlength="4096" class="form-control " required >', false)
+            ->assertSee('name="options[0][value]" value="m"', false)
+            ->assertSee('name="key" id="key" class="form-control " value="gender" disabled', false)
+            ->assertDontSee('name="options[0][line]"', false);
+
+        $this->actingAs($admin)
+            ->get(route('registration.admin.questions.create', ['section' => $gender->section_id]))
+            ->assertOk()
+            ->assertDontSee(__('registration::admin.questions_texts_only'))
             ->assertSee('name="label" id="label" rows="3" maxlength="4096" class="form-control " required disabled', false);
     }
 }

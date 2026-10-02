@@ -21,12 +21,6 @@ use Illuminate\Support\Collection;
  */
 class SectionVisibilityController extends VisibilityRuleController
 {
-    /** Sections stay editable while answers are locked. */
-    protected function honorsAnswerLock(): bool
-    {
-        return false;
-    }
-
     /** Open the editor for a section's rule. */
     public function edit(Section $section)
     {

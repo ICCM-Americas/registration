@@ -103,6 +103,10 @@
 .js-section-title .btn { visibility: hidden; }
 .js-section-title:focus-within .btn { visibility: visible; }
 
+/* A locked option row's value, label and help text inputs share the row,
+   wrapping onto their own lines on a narrow screen. */
+.option-text { flex: 1 1 10rem; width: auto; }
+
 /* --- Modals ---------------------------------------------------------------*/
 
 .reg-modal-overlay { background: rgba(0,0,0,.5); overflow-y: auto; }

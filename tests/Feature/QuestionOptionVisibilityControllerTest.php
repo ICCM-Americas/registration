@@ -144,40 +144,24 @@ class QuestionOptionVisibilityControllerTest extends TestCase
 
     /**
      * admin() seeds real answers via its group, unlike every test above
-     * (which deliberately uses an answer-free makeUser() actor).
+     * (which deliberately uses an answer-free makeUser() actor) — rules stay
+     * editable even then, so one a renamed option value broke can be fixed.
      */
-    #[TestDox('mutations are rejected while locked')]
-    public function test_mutations_are_rejected_while_locked(): void
+    #[TestDox('the rule stays editable once answers are locked')]
+    public function test_the_rule_stays_editable_once_answers_are_locked(): void
     {
         $admin = $this->admin();
         $option = $this->option('accommodation', 'hotel');
+
+        $this->actingAs($admin)
+            ->get(route('registration.admin.options.visibility', $option))
+            ->assertOk()
+            ->assertDontSee('disabled', false);
 
         $this->actingAs($admin)
             ->postJson(route('registration.admin.options.rule.store', $option))
-            ->assertStatus(422)
-            ->assertJsonValidationErrors('locked');
+            ->assertOk();
 
-        $this->assertTrue($option->fresh()->conditionGroups->isEmpty());
-    }
-
-    #[TestDox('editor exposes locked only once an answer exists')]
-    public function test_editor_exposes_locked_only_once_an_answer_exists(): void
-    {
-        // Check the unlocked case before any answer exists at all — admin()
-        // seeds real answers globally, so once called there's no going back
-        // to "unlocked" within this test. It also re-runs the fixture seeder,
-        // rebuilding the seeded options, so $option is re-resolved afterwards.
-        $option = $this->option('accommodation', 'hotel');
-        $this->actingAs($this->makeUser())
-            ->get(route('registration.admin.options.visibility', $option))
-            ->assertOk()
-            ->assertDontSee('class="btn btn-primary" disabled', false);
-
-        $admin = $this->admin();
-        $option = $this->option('accommodation', 'hotel');
-        $this->actingAs($admin)
-            ->get(route('registration.admin.options.visibility', $option))
-            ->assertOk()
-            ->assertSee('class="btn btn-primary" disabled', false);
+        $this->assertCount(1, $option->fresh()->conditionGroups);
     }
 }

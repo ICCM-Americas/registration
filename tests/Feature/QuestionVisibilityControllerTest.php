@@ -301,49 +301,39 @@ class QuestionVisibilityControllerTest extends TestCase
             ->assertNotFound();
     }
 
-    #[TestDox('editor exposes locked only once an answer exists')]
-    public function test_editor_exposes_locked_only_once_an_answer_exists(): void
-    {
-        $question = Question::where('key', 'nickname')->first();
-
-        $this->actingAs($this->makeUser())
-            ->get(route('registration.admin.questions.visibility', $question))
-            ->assertOk()
-            ->assertDontSee('class="btn btn-primary" disabled', false);
-
-        // admin() seeds real answers via its group, unlike every test above
-        // (which deliberately uses an answer-free makeUser() actor).
-        $this->actingAs($this->admin())
-            ->get(route('registration.admin.questions.visibility', $question))
-            ->assertOk()
-            ->assertSee('class="btn btn-primary" disabled', false);
-    }
-
-    #[TestDox('mutations are rejected while locked')]
-    public function test_mutations_are_rejected_while_locked(): void
+    /**
+     * admin() seeds real answers via its group, unlike every test above
+     * (which deliberately uses an answer-free makeUser() actor) — rules stay
+     * editable even then, so one a renamed option value broke can be fixed.
+     */
+    #[TestDox('the rule stays editable once answers are locked')]
+    public function test_the_rule_stays_editable_once_answers_are_locked(): void
     {
         $question = Question::where('key', 'nickname')->first();
         $admin = $this->admin();
+
+        $this->actingAs($admin)
+            ->get(route('registration.admin.questions.visibility', $question))
+            ->assertOk()
+            ->assertDontSee('disabled', false);
 
         $this->actingAs($admin)
             ->postJson(route('registration.admin.questions.rule.store', $question))
-            ->assertStatus(422)
-            ->assertJsonValidationErrors('locked');
+            ->assertOk();
 
-        $this->assertTrue($question->fresh()->conditionGroups->isEmpty());
+        $this->assertCount(1, $question->fresh()->conditionGroups);
     }
 
-    #[TestDox('hide and show are rejected while locked')]
-    public function test_hide_and_show_are_rejected_while_locked(): void
+    #[TestDox('hide and show work once answers are locked')]
+    public function test_hide_and_show_work_once_answers_are_locked(): void
     {
         $question = Question::where('key', 'nickname')->first();
         $admin = $this->admin();
 
-        $this->actingAs($admin)
-            ->postJson(route('registration.admin.questions.hide', $question))
-            ->assertStatus(422)
-            ->assertJsonValidationErrors('locked');
+        $this->actingAs($admin)->post(route('registration.admin.questions.hide', $question))->assertOk();
+        $this->assertTrue($question->fresh()->isHidden());
 
+        $this->actingAs($admin)->post(route('registration.admin.questions.show', $question))->assertOk();
         $this->assertFalse($question->fresh()->isHidden());
     }
 }

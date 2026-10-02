@@ -68,12 +68,6 @@ class ReportColumnVisibilityController extends VisibilityRuleController
         return $this->destroyConditionFor($column, $condition);
     }
 
-    /** Cell rules aren't wizard structure — they never lock. */
-    protected function honorsAnswerLock(): bool
-    {
-        return false;
-    }
-
     /** Cell rules run on registrant and guest rows, so both scopes may control them. */
     protected function controllingQuestions(Model $node): Collection
     {

@@ -4,9 +4,11 @@
     tags when the modal closes: data-tags maps each [data-badge] name to
     whether it should show.
 
-    Expects: $type, $id, $items, $locales, $locked (only ever true for a
-    question — steps/sections/closed-messages are never locked).
+    Expects: $type, $id, $items, $locales. A question's forms carry
+    .js-answer-sync, so saving warns first when stored answers would change
+    (partials/answer-sync-modal.blade.php).
 --}}
+@php($sync = $type === 'question' ? ' js-answer-sync' : '')
 {{-- .translations-locale-input is defined in partials/editor-modal.blade.php:
      this fragment is fetched over AJAX and injected into that modal, whose
      nonce (not this response's own) is what the page's CSP actually allows. --}}
@@ -23,18 +25,18 @@
         <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <strong>{{ $locale }}</strong>
-                <form method="POST" action="{{ route($routeName('admin.translations.locale.destroy'), [$type, $id, $locale]) }}" class="js-confirm-submit" data-confirm="{{ __('registration::admin.confirm_delete_language') }}">
+                <form method="POST" action="{{ route($routeName('admin.translations.locale.destroy'), [$type, $id, $locale]) }}" class="js-confirm-submit{{ $sync }}" data-confirm="{{ __('registration::admin.confirm_delete_language') }}">
                     @csrf
                     @method('DELETE')
-                    <button type="submit" class="btn btn-sm btn-outline-danger" {{ $locked ? 'disabled' : '' }}>{{ __('registration::admin.delete') }}</button>
+                    <button type="submit" class="btn btn-sm btn-outline-danger">{{ __('registration::admin.delete') }}</button>
                 </form>
             </div>
             <div class="card-body">
-                <form method="POST" action="{{ route($routeName('admin.translations.save'), [$type, $id]) }}">
+                <form method="POST" action="{{ route($routeName('admin.translations.save'), [$type, $id]) }}" class="{{ trim($sync) }}">
                     @csrf
                     <input type="hidden" name="locale" value="{{ $locale }}">
-                    @include('registration::admin.translations.fields', ['items' => $items, 'locale' => $locale, 'locked' => $locked])
-                    <button type="submit" class="btn btn-sm btn-primary" {{ $locked ? 'disabled' : '' }}>{{ __('registration::admin.save') }}</button>
+                    @include('registration::admin.translations.fields', ['items' => $items, 'locale' => $locale])
+                    <button type="submit" class="btn btn-sm btn-primary">{{ __('registration::admin.save') }}</button>
                 </form>
             </div>
         </div>
@@ -44,17 +46,17 @@
     <div class="card mb-4">
         <div class="card-header">{{ __('registration::admin.add_language') }}</div>
         <div class="card-body">
-            <form method="POST" action="{{ route($routeName('admin.translations.save'), [$type, $id]) }}">
+            <form method="POST" action="{{ route($routeName('admin.translations.save'), [$type, $id]) }}" class="{{ trim($sync) }}">
                 @csrf
                 <div class="form-group">
                     <label for="new-locale">{{ __('registration::admin.locale') }}</label>
                     {{-- The hyphen is escaped for the browser's v-flag regex
                          compilation, where a bare "-" in a class is an error. --}}
-                    <input type="text" id="new-locale" name="locale" maxlength="12" pattern="[A-Za-z]{2,3}([\-_][A-Za-z0-9]{2,8})?" class="form-control form-control-sm translations-locale-input" required {{ $locked ? 'disabled' : '' }}>
+                    <input type="text" id="new-locale" name="locale" maxlength="12" pattern="[A-Za-z]{2,3}([\-_][A-Za-z0-9]{2,8})?" class="form-control form-control-sm translations-locale-input" required>
                     <small class="form-text text-muted">{{ __('registration::admin.locale_hint') }}</small>
                 </div>
-                @include('registration::admin.translations.fields', ['items' => $items, 'locale' => null, 'locked' => $locked])
-                <button type="submit" class="btn btn-sm btn-secondary" {{ $locked ? 'disabled' : '' }}>{{ __('registration::admin.add') }}</button>
+                @include('registration::admin.translations.fields', ['items' => $items, 'locale' => null])
+                <button type="submit" class="btn btn-sm btn-secondary">{{ __('registration::admin.add') }}</button>
             </form>
         </div>
     </div>

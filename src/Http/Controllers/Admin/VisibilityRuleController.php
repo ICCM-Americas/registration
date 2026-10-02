@@ -9,12 +9,10 @@ use ConferenceTools\Registration\Http\Controllers\Controller;
 use ConferenceTools\Registration\Models\Condition;
 use ConferenceTools\Registration\Models\ConditionGroup;
 use ConferenceTools\Registration\Services\QuestionRepository;
-use ConferenceTools\Registration\Services\RegistrationStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
 
 /**
  * Shared editing of a visibility rule — the nested AND/OR tree of condition
@@ -24,28 +22,13 @@ use Illuminate\Validation\ValidationException;
  * lives on the server and needs no client logic beyond the console's modal.
  *
  * Subclasses bind the concrete node type in their route actions and say which
- * questions may control the node and what the editor fragment shows. A
- * question's or option's rule is locked against edits while
- * {@see RegistrationStatus::answersLocked()}; sections opt out of the lock
- * via {@see honorsAnswerLock()}.
+ * questions may control the node and what the editor fragment shows. Rules
+ * are never locked — not even once answers are — so a rule that a renamed
+ * option value broke can always be fixed.
  */
 abstract class VisibilityRuleController extends Controller
 {
-    public function __construct(protected QuestionRepository $questions, protected RegistrationStatus $status) {}
-
-    /** Whether this node type refuses edits while answers are locked. */
-    protected function honorsAnswerLock(): bool
-    {
-        return true;
-    }
-
-    /** Refuse a mutation while locked, surfaced through the editor modal's existing inline-error rendering. */
-    protected function guardUnlocked(): void
-    {
-        if ($this->honorsAnswerLock() && $this->status->answersLocked()) {
-            throw ValidationException::withMessages(['locked' => __('registration::admin.editor_locked')]);
-        }
-    }
+    public function __construct(protected QuestionRepository $questions) {}
 
     /** Questions whose answers this node's rule may test. */
     abstract protected function controllingQuestions(Model $node): Collection;
@@ -95,15 +78,12 @@ abstract class VisibilityRuleController extends Controller
             'controllingSubjects' => $this->controllingSubjects($node),
             'booleanOperators' => BooleanOperator::cases(),
             'conditionOperators' => ConditionOperator::cases(),
-            'locked' => $this->honorsAnswerLock() && $this->status->answersLocked(),
         ], $this->editorData($node)));
     }
 
     /** Start a rule: attach a root group to the node. */
     protected function storeRootFor(Model $node)
     {
-        $this->guardUnlocked();
-
         $node->conditionGroups()->create(['operator' => BooleanOperator::And->value]);
 
         return $this->editor($node);
@@ -112,8 +92,6 @@ abstract class VisibilityRuleController extends Controller
     /** Remove the whole rule — the node becomes unconditional (always shown). */
     protected function destroyRuleFor(Model $node)
     {
-        $this->guardUnlocked();
-
         $node->conditionGroups()->get()->each->delete();
 
         return $this->editor($node);
@@ -122,8 +100,6 @@ abstract class VisibilityRuleController extends Controller
     /** Add a nested subgroup under an existing group. */
     protected function storeGroupFor(Request $request, Model $node)
     {
-        $this->guardUnlocked();
-
         $data = $request->validate([
             'parent_group_id' => ['required', $this->groupBelongsTo($node)],
             'operator' => ['required', Rule::in(BooleanOperator::values())],
@@ -140,7 +116,6 @@ abstract class VisibilityRuleController extends Controller
     /** Switch an existing group's AND/OR operator. */
     protected function updateGroupFor(Request $request, Model $node, ConditionGroup $group)
     {
-        $this->guardUnlocked();
         abort_unless($this->ownsGroup($node, $group), 404);
 
         $group->update($request->validate([
@@ -153,7 +128,6 @@ abstract class VisibilityRuleController extends Controller
     /** Remove a group and its subtree from the rule. */
     protected function destroyGroupFor(Model $node, ConditionGroup $group)
     {
-        $this->guardUnlocked();
         abort_unless($this->ownsGroup($node, $group), 404);
 
         $group->delete();
@@ -168,8 +142,6 @@ abstract class VisibilityRuleController extends Controller
      */
     protected function storeConditionFor(Request $request, Model $node)
     {
-        $this->guardUnlocked();
-
         $subjectValues = array_map(fn (ConditionSubject $s): string => $s->value, $this->controllingSubjects($node));
 
         $data = $request->validate([
@@ -196,7 +168,6 @@ abstract class VisibilityRuleController extends Controller
     /** Remove one leaf condition from the rule. */
     protected function destroyConditionFor(Model $node, Condition $condition)
     {
-        $this->guardUnlocked();
         abort_unless($this->ownsGroup($node, $condition->group), 404);
 
         $condition->delete();

@@ -7,10 +7,7 @@
     Expects: $node (the conditionable model), $visPrefix (route-name prefix),
     $group, $controllingQuestions, $controllingSubjects (built-in subjects a
     condition may test instead of a question's answer — usually empty),
-    $booleanOperators, $conditionOperators, $locked (inherited from the
-    visibility editor's scope through every recursive @include of this
-    partial — Blade @include merges into, rather than replaces, the parent
-    view's data).
+    $booleanOperators, $conditionOperators.
 --}}
 <div class="card mb-2 border-left-primary visibility-group-card">
     <div class="card-body">
@@ -20,7 +17,7 @@
                 <span class="mr-2">{{ __('registration::admin.visibility_match') }}</span>
                 {{-- requestSubmit(), not submit(): it fires the submit event, so
                      the editor modal's AJAX interception sees the change. --}}
-                <select name="operator" class="form-control form-control-sm mr-2 js-auto-submit" {{ $locked ? 'disabled' : '' }}>
+                <select name="operator" class="form-control form-control-sm mr-2 js-auto-submit">
                     @foreach ($booleanOperators as $operator)
                         <option value="{{ $operator->value }}" {{ $group->operator === $operator ? 'selected' : '' }}>
                             {{ strtoupper($operator->value) }}
@@ -34,7 +31,7 @@
             <form method="POST" action="{{ route($routeName($visPrefix.'.groups.destroy'), [$node, $group]) }}"
                   class="js-confirm-submit" data-confirm="{{ __('registration::admin.visibility_confirm_group') }}">
                 @csrf @method('DELETE')
-                <button type="submit" class="btn btn-outline-danger btn-sm" {{ $locked ? 'disabled' : '' }}>&times;</button>
+                <button type="submit" class="btn btn-outline-danger btn-sm">&times;</button>
             </form>
         </div>
 
@@ -48,7 +45,7 @@
                     </span>
                     <form method="POST" action="{{ route($routeName($visPrefix.'.conditions.destroy'), [$node, $condition]) }}">
                         @csrf @method('DELETE')
-                        <button type="submit" class="btn btn-outline-danger btn-sm py-0" {{ $locked ? 'disabled' : '' }}>&times;</button>
+                        <button type="submit" class="btn btn-outline-danger btn-sm py-0">&times;</button>
                     </form>
                 </li>
             @empty
@@ -60,27 +57,27 @@
         <form method="POST" action="{{ route($routeName($visPrefix.'.conditions.store'), $node) }}" class="form-inline mb-2">
             @csrf
             <input type="hidden" name="condition_group_id" value="{{ $group->id }}">
-            <select name="question_id" class="form-control form-control-sm mr-1" {{ $locked ? 'disabled' : '' }}>
+            <select name="question_id" class="form-control form-control-sm mr-1">
                 <option value="">{{ __('registration::admin.visibility_pick_question') }}</option>
                 @foreach ($controllingQuestions as $candidate)
                     <option value="{{ $candidate->id }}">{{ $candidate->key }}</option>
                 @endforeach
             </select>
             @if (! empty($controllingSubjects))
-                <select name="subject" class="form-control form-control-sm mr-1" {{ $locked ? 'disabled' : '' }}>
+                <select name="subject" class="form-control form-control-sm mr-1">
                     <option value="">{{ __('registration::admin.visibility_pick_subject') }}</option>
                     @foreach ($controllingSubjects as $subject)
                         <option value="{{ $subject->value }}">{{ $subject->label() }}</option>
                     @endforeach
                 </select>
             @endif
-            <select name="operator" class="form-control form-control-sm mr-1" {{ $locked ? 'disabled' : '' }}>
+            <select name="operator" class="form-control form-control-sm mr-1">
                 @foreach ($conditionOperators as $operator)
                     <option value="{{ $operator->value }}">{{ $operator->value }}</option>
                 @endforeach
             </select>
-            <input type="text" name="value" class="form-control form-control-sm mr-1" placeholder="{{ __('registration::admin.visibility_value') }}" {{ $locked ? 'disabled' : '' }}>
-            <button type="submit" class="btn btn-sm btn-secondary" {{ $locked ? 'disabled' : '' }}>{{ __('registration::admin.visibility_add_condition') }}</button>
+            <input type="text" name="value" class="form-control form-control-sm mr-1" placeholder="{{ __('registration::admin.visibility_value') }}">
+            <button type="submit" class="btn btn-sm btn-secondary">{{ __('registration::admin.visibility_add_condition') }}</button>
         </form>
 
         {{-- Nested subgroups. --}}
@@ -92,7 +89,7 @@
             @csrf
             <input type="hidden" name="parent_group_id" value="{{ $group->id }}">
             <input type="hidden" name="operator" value="{{ \ConferenceTools\Registration\Enums\BooleanOperator::And->value }}">
-            <button type="submit" class="btn btn-sm btn-outline-secondary" {{ $locked ? 'disabled' : '' }}>{{ __('registration::admin.visibility_add_group') }}</button>
+            <button type="submit" class="btn btn-sm btn-outline-secondary">{{ __('registration::admin.visibility_add_group') }}</button>
         </form>
     </div>
 </div>

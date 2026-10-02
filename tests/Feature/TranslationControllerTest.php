@@ -2,9 +2,12 @@
 
 namespace ConferenceTools\Registration\Tests\Feature;
 
+use ConferenceTools\Registration\Enums\QuestionType;
+use ConferenceTools\Registration\Models\Answer;
 use ConferenceTools\Registration\Models\ClosedMessage;
 use ConferenceTools\Registration\Models\InfoStep;
 use ConferenceTools\Registration\Models\Question;
+use ConferenceTools\Registration\Models\QuestionOption;
 use ConferenceTools\Registration\Models\Section;
 use ConferenceTools\Registration\Models\Translation;
 use ConferenceTools\Registration\Tests\Concerns\BuildsRegistrationData;
@@ -219,7 +222,7 @@ class TranslationControllerTest extends TestCase
         $this->assertSame('M. {q:lastname.value}', $option->fresh()->translate('value', 'fr'));
     }
 
-    /** Any answer at all locks a question's (and its options') translations, but not a step's, section's, or closed-message's. */
+    /** Any answer at all locks a question's structure, though never any entity's translations. */
     private function seedOneAnswer(): void
     {
         $question = Question::factory()->create();
@@ -232,31 +235,31 @@ class TranslationControllerTest extends TestCase
         ]);
     }
 
-    #[TestDox('question translations are rejected while locked')]
-    public function test_question_translations_are_rejected_while_locked(): void
+    /**
+     * A question recording its option's translated value, with one answer
+     * stored from the option's French translation.
+     *
+     * @return array{0: Question, 1: QuestionOption, 2: Answer}
+     */
+    private function translatedAnswer(): array
     {
-        $question = $this->makeEntity('question');
-        $this->seedOneAnswer();
+        $question = Question::factory()->create(['type' => QuestionType::Select, 'translate_value' => true]);
+        $option = $question->options()->create(['value' => 'Mr.', 'label' => 'Mr.']);
+        $option->storeTranslation('fr', 'value', 'M.');
+        $owner = $this->makeUser();
 
-        $this->actingAs($this->makeUser())
-            ->postJson(route('registration.admin.translations.save', ['question', $question->id]), [
-                'locale' => 'fr',
-                'texts' => ['self' => ['label' => 'Prénom']],
-            ])
-            ->assertStatus(422)
-            ->assertJsonValidationErrors('locked');
+        $answer = $question->answers()->create([
+            'owner_type' => $owner->getMorphClass(),
+            'owner_id' => $owner->getKey(),
+            'value' => 'M.',
+        ]);
 
-        $this->assertSame(0, Translation::count());
-
-        $this->actingAs($this->makeUser())
-            ->deleteJson(route('registration.admin.translations.locale.destroy', ['question', $question->id, 'fr']))
-            ->assertStatus(422)
-            ->assertJsonValidationErrors('locked');
+        return [$question, $option, $answer];
     }
 
-    #[DataProvider('unlockedTypes')]
-    #[TestDox('step section and closed message translations stay editable while locked')]
-    public function test_step_section_and_closed_message_translations_stay_editable_while_locked(string $type): void
+    #[DataProvider('editableTypes')]
+    #[TestDox('translations stay editable while locked')]
+    public function test_translations_stay_editable_while_locked(string $type): void
     {
         $entity = $type === 'closed-message'
             ? ClosedMessage::forKey(ClosedMessage::CLOSED)
@@ -272,13 +275,56 @@ class TranslationControllerTest extends TestCase
         $this->assertSame('Texte FR', $entity->fresh()->translate($entity->translatableFields()[0], 'fr'));
     }
 
-    /** The unlocked types for the data provider. */
-    public static function unlockedTypes(): array
+    /** The translatable types for the data provider. */
+    public static function editableTypes(): array
     {
         return [
             'step' => ['step'],
             'section' => ['section'],
+            'question' => ['question'],
             'closed-message' => ['closed-message'],
         ];
+    }
+
+    #[TestDox('saving a question translation updates the stored answers rendered from it')]
+    public function test_saving_a_question_translation_updates_the_stored_answers_rendered_from_it(): void
+    {
+        [$question, $option, $answer] = $this->translatedAnswer();
+
+        $this->actingAs($this->makeUser())
+            ->post(route('registration.admin.translations.save', ['question', $question->id]), [
+                'locale' => 'fr',
+                'texts' => ['option-'.$option->id => ['value' => 'Monsieur']],
+            ])->assertOk();
+
+        $this->assertSame('Monsieur', $answer->fresh()->value);
+    }
+
+    #[TestDox('a translation preview counts the stored answers it would change without saving')]
+    public function test_a_translation_preview_counts_the_stored_answers_it_would_change_without_saving(): void
+    {
+        [$question, $option, $answer] = $this->translatedAnswer();
+
+        $this->actingAs($this->makeUser())
+            ->post(route('registration.admin.translations.save', ['question', $question->id]), [
+                'locale' => 'fr',
+                'texts' => ['option-'.$option->id => ['value' => 'Monsieur']],
+                'preview' => '1',
+            ])->assertOk()->assertExactJson(['changes' => 1]);
+
+        $this->assertSame('M.', $answer->fresh()->value);
+        $this->assertSame('M.', $option->fresh()->translate('value', 'fr'));
+    }
+
+    #[TestDox('deleting a question\'s language returns its stored answers to the base text')]
+    public function test_deleting_a_questions_language_returns_its_stored_answers_to_the_base_text(): void
+    {
+        [$question, , $answer] = $this->translatedAnswer();
+
+        $this->actingAs($this->makeUser())
+            ->delete(route('registration.admin.translations.locale.destroy', ['question', $question->id, 'fr']))
+            ->assertOk();
+
+        $this->assertSame('Mr.', $answer->fresh()->value);
     }
 }

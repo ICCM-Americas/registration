@@ -41,8 +41,6 @@ class QuestionVisibilityController extends VisibilityRuleController
     /** Mark the question never-visible ("always hidden"); any rule is discarded. */
     public function hide(Question $question)
     {
-        $this->guardUnlocked();
-
         $question->conditionGroups()->get()->each->delete();
         $question->update(['config' => array_merge($question->config ?? [], ['hidden' => true])]);
 
@@ -52,8 +50,6 @@ class QuestionVisibilityController extends VisibilityRuleController
     /** Clear the never-visible flag — the question becomes always shown. */
     public function show(Question $question)
     {
-        $this->guardUnlocked();
-
         $config = $question->config ?? [];
         unset($config['hidden']);
         $question->update(['config' => $config ?: null]);

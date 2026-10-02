@@ -11,8 +11,7 @@
     called in the fixed texts), $tags, $intro, $subjectLabel, $subjectKey,
     $rootGroups, $controllingQuestions, $controllingSubjects (built-in
     subjects, e.g. a guest's own type — usually empty), $booleanOperators,
-    $conditionOperators, $locked (always false for a section — only
-    question/option rules lock).
+    $conditionOperators.
 --}}
 {{-- .visibility-group-card is defined in partials/editor-modal.blade.php:
      this fragment is fetched over AJAX and injected into that modal, whose
@@ -32,19 +31,19 @@
         <div class="alert alert-dark">{{ __('registration::admin.visibility_never', ['noun' => $noun]) }}</div>
         <form method="POST" action="{{ route($routeName($visPrefix.'.show'), $node) }}">
             @csrf
-            <button type="submit" class="btn btn-primary" {{ $locked ? 'disabled' : '' }}>{{ __('registration::admin.visibility_make_visible') }}</button>
+            <button type="submit" class="btn btn-primary">{{ __('registration::admin.visibility_make_visible') }}</button>
         </form>
     @elseif ($rootGroups->isEmpty())
         <div class="alert alert-secondary">{{ __('registration::admin.visibility_always', ['noun' => $noun]) }}</div>
         <div class="d-flex">
             <form method="POST" action="{{ route($routeName($visPrefix.'.rule.store'), $node) }}">
                 @csrf
-                <button type="submit" class="btn btn-primary" {{ $locked ? 'disabled' : '' }}>{{ __('registration::admin.visibility_start') }}</button>
+                <button type="submit" class="btn btn-primary">{{ __('registration::admin.visibility_start') }}</button>
             </form>
             @if ($canHide)
                 <form method="POST" action="{{ route($routeName($visPrefix.'.hide'), $node) }}" class="ml-2">
                     @csrf
-                    <button type="submit" class="btn btn-outline-danger" {{ $locked ? 'disabled' : '' }}>{{ __('registration::admin.visibility_never_set', ['noun' => $noun]) }}</button>
+                    <button type="submit" class="btn btn-outline-danger">{{ __('registration::admin.visibility_never_set', ['noun' => $noun]) }}</button>
                 </form>
             @endif
         </div>
@@ -59,13 +58,13 @@
             <form method="POST" action="{{ route($routeName($visPrefix.'.rule.destroy'), $node) }}"
                   class="js-confirm-submit" data-confirm="{{ __('registration::admin.visibility_confirm_remove') }}">
                 @csrf @method('DELETE')
-                <button type="submit" class="btn btn-secondary btn-sm" {{ $locked ? 'disabled' : '' }}>{{ __('registration::admin.visibility_remove') }}</button>
+                <button type="submit" class="btn btn-secondary btn-sm">{{ __('registration::admin.visibility_remove') }}</button>
             </form>
             @if ($canHide)
                 <form method="POST" action="{{ route($routeName($visPrefix.'.hide'), $node) }}" class="ml-2 js-confirm-submit"
                       data-confirm="{{ __('registration::admin.visibility_confirm_hide', ['noun' => $noun]) }}">
                     @csrf
-                    <button type="submit" class="btn btn-outline-danger btn-sm" {{ $locked ? 'disabled' : '' }}>{{ __('registration::admin.visibility_never_set', ['noun' => $noun]) }}</button>
+                    <button type="submit" class="btn btn-outline-danger btn-sm">{{ __('registration::admin.visibility_never_set', ['noun' => $noun]) }}</button>
                 </form>
             @endif
         </div>

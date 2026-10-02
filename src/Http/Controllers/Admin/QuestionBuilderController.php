@@ -9,6 +9,7 @@ use ConferenceTools\Registration\Http\Controllers\Controller;
 use ConferenceTools\Registration\Models\Question;
 use ConferenceTools\Registration\Models\QuestionOption;
 use ConferenceTools\Registration\Models\Section;
+use ConferenceTools\Registration\Services\AnswerTextSync;
 use ConferenceTools\Registration\Services\RegistrationStatus;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -30,11 +31,15 @@ use Illuminate\Validation\Rule;
  * section's title, but not the order of sections) refuse to save while
  * {@see RegistrationStatus::answersLocked()} —
  * the views render every such control disabled, and these guards are the
- * server-side backstop for a direct request.
+ * server-side backstop for a direct request. The exception is a question's
+ * texts (label, help text, placeholder, and its options' values, labels and
+ * help texts), which stay editable. Every question update runs through
+ * {@see AnswerTextSync}, so stored answers follow the edited texts; a
+ * "preview" submission reports how many would change without saving.
  */
 class QuestionBuilderController extends Controller
 {
-    public function __construct(private RegistrationStatus $status) {}
+    public function __construct(private RegistrationStatus $status, private AnswerTextSync $sync) {}
 
     /** The question builder console, listing every scope's sections and questions. */
     public function index()
@@ -211,14 +216,31 @@ class QuestionBuilderController extends Controller
         ]);
     }
 
-    /** Save a question and reconcile its options. */
+    /**
+     * Save a question and reconcile its options — only its texts while
+     * locked — bringing stored answers in line with the edit.
+     */
     public function updateQuestion(Request $request, Question $question)
     {
-        if ($this->status->answersLocked()) {
-            return $this->back('questions_locked');
-        }
+        $locked = $this->status->answersLocked();
+        $data = $locked ? $request->validate($this->textRules()) : $this->validateQuestion($request);
 
-        $data = $this->validateQuestion($request);
+        $changes = $this->sync->run(
+            $question,
+            fn () => $locked ? $this->updateTexts($question, $data) : $this->updateStructure($request, $question, $data),
+            $request->boolean('preview'),
+        );
+
+        return $request->boolean('preview') ? response()->json(['changes' => $changes]) : $this->toQuestion($question);
+    }
+
+    /**
+     * Save every field of a question and reconcile its options.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function updateStructure(Request $request, Question $question, array $data): void
+    {
         $section = Section::findOrFail($data['section_id']);
 
         $question->update([
@@ -241,8 +263,43 @@ class QuestionBuilderController extends Controller
         if (! $question->is_system) {
             $this->syncOptions($question, $data['options'] ?? []);
         }
+    }
 
-        return $this->toQuestion($question);
+    /**
+     * Save only a question's texts and its existing options' texts; a row
+     * with a blank value, or no matching option, is ignored.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function updateTexts(Question $question, array $data): void
+    {
+        $question->update([
+            'label' => $data['label'],
+            'help_text' => $data['help_text'] ?? null,
+            'placeholder' => $data['placeholder'] ?? null,
+        ]);
+
+        if ($question->is_system) {
+            return;
+        }
+
+        $options = $question->options()->get()->keyBy('id');
+
+        foreach ($data['options'] ?? [] as $row) {
+            $option = $options->get((int) ($row['id'] ?? 0));
+            $value = trim((string) ($row['value'] ?? ''));
+            if ($option === null || $value === '') {
+                continue;
+            }
+
+            $label = trim((string) ($row['label'] ?? ''));
+            $description = trim((string) ($row['description'] ?? ''));
+            $option->update([
+                'value' => $value,
+                'label' => $label !== '' ? $label : $value,
+                'description' => $description !== '' ? $description : null,
+            ]);
+        }
     }
 
     /** Remove a question. */
@@ -317,6 +374,21 @@ class QuestionBuilderController extends Controller
             'options.*.id' => ['nullable', 'integer'],
             'options.*.line' => ['nullable', 'string', 'max:2048'],
         ]);
+    }
+
+    /** The rules for a locked question form, which submits only texts. */
+    private function textRules(): array
+    {
+        return [
+            'label' => ['required', 'string', 'max:4096'],
+            'help_text' => ['nullable', 'string', 'max:1000'],
+            'placeholder' => ['nullable', 'string', 'max:255'],
+            'options' => ['nullable', 'array'],
+            'options.*.id' => ['nullable', 'integer'],
+            'options.*.value' => ['nullable', 'string', 'max:255'],
+            'options.*.label' => ['nullable', 'string', 'max:255'],
+            'options.*.description' => ['nullable', 'string', 'max:2048'],
+        ];
     }
 
     /**
@@ -408,11 +480,13 @@ class QuestionBuilderController extends Controller
     private function optionRows(Question $question): array
     {
         $options = $question->options->keyBy('id');
+        $locked = $this->status->answersLocked();
 
         if (($old = old('options')) !== null) {
-            return collect($old)->values()->map(function (array $row) use ($options) {
+            return collect($old)->values()->map(function (array $row) use ($options, $locked) {
                 $option = $options->get((int) ($row['id'] ?? 0));
-                $line = (string) ($row['line'] ?? '');
+                // A locked form posts texts, not lines; its structure is the saved one.
+                $line = $locked && $option !== null ? $this->optionToText($option) : (string) ($row['line'] ?? '');
 
                 return $this->optionRow(
                     $option?->id,
@@ -432,6 +506,7 @@ class QuestionBuilderController extends Controller
                 'cost' => $option->cost !== null ? (float) $option->cost : null,
                 'per_diem_days' => $option->per_diem_days,
                 'per_diem_scope' => $option->per_diem_scope,
+                'description' => $option->description,
             ],
             $option->conditionGroups->isNotEmpty(),
         ))->values()->all();
@@ -454,6 +529,7 @@ class QuestionBuilderController extends Controller
             'cost' => $parts !== null && $parts['cost'] !== null ? number_format((float) $parts['cost'], 2, '.', '') : null,
             'per_diem_days' => (int) ($parts['per_diem_days'] ?? 0),
             'per_diem_guests' => ($parts['per_diem_scope'] ?? PerDiemScope::Attendee)->includesGuests(),
+            'description' => (string) ($parts['description'] ?? ''),
             'conditional' => $conditional,
         ];
     }

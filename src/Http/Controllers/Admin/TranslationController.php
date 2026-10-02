@@ -9,11 +9,10 @@ use ConferenceTools\Registration\Models\InfoStep;
 use ConferenceTools\Registration\Models\Question;
 use ConferenceTools\Registration\Models\QuestionOption;
 use ConferenceTools\Registration\Models\Section;
-use ConferenceTools\Registration\Services\RegistrationStatus;
+use ConferenceTools\Registration\Services\AnswerTextSync;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
-use Illuminate\Validation\ValidationException;
 
 /**
  * The admin translations editor: one editor per translatable entity (landing-page
@@ -22,9 +21,10 @@ use Illuminate\Validation\ValidationException;
  * columns keep the base-language text; rows saved here override it for a locale
  * at render time, falling back per TranslatesFields when a locale is missing.
  *
- * A question's (and its options') translations are locked against edits while
- * {@see RegistrationStatus::answersLocked()} — step/section/closed-message
- * translations are never locked.
+ * A question's (and its options') translations are texts, so they stay
+ * editable even once answers are locked; each change runs through
+ * {@see AnswerTextSync} so stored answers follow it, and a "preview"
+ * submission reports how many would change without saving.
  */
 class TranslationController extends Controller
 {
@@ -37,7 +37,7 @@ class TranslationController extends Controller
         'home-card-message' => HomeCardMessage::class,
     ];
 
-    public function __construct(private RegistrationStatus $status) {}
+    public function __construct(private AnswerTextSync $sync) {}
 
     /** The translation editor for one entity's translatable fields. */
     public function edit(string $type, int $id)
@@ -48,8 +48,6 @@ class TranslationController extends Controller
     /** Create or update one locale's texts (empty inputs remove the row). */
     public function save(Request $request, string $type, int $id)
     {
-        $this->guardUnlocked($type);
-
         $data = $request->validate([
             'locale' => ['required', 'string', 'max:12', 'regex:/^[a-z]{2,3}([-_][a-z0-9]{2,8})?$/i'],
             'texts' => ['array'],
@@ -57,34 +55,45 @@ class TranslationController extends Controller
             'texts.*.*' => ['nullable', 'string', 'max:5000'],
         ]);
 
-        foreach ($this->items($this->entity($type, $id)) as $item) {
-            $texts = $data['texts'][$this->itemKey($item)] ?? [];
-            foreach ($item->translatableFields() as $field) {
-                $item->storeTranslation($data['locale'], $field, $texts[$field] ?? null);
+        return $this->synced($request, $type, $id, function (Collection $items) use ($data) {
+            foreach ($items as $item) {
+                $texts = $data['texts'][$this->itemKey($item)] ?? [];
+                foreach ($item->translatableFields() as $field) {
+                    $item->storeTranslation($data['locale'], $field, $texts[$field] ?? null);
+                }
             }
-        }
-
-        return $this->editor($type, $id);
+        });
     }
 
     /** Remove one locale's translations from an entity. */
-    public function destroyLocale(string $type, int $id, string $locale)
+    public function destroyLocale(Request $request, string $type, int $id, string $locale)
     {
-        $this->guardUnlocked($type);
-
-        foreach ($this->items($this->entity($type, $id)) as $item) {
-            $item->translations()->where('locale', $locale)->delete();
-        }
-
-        return $this->editor($type, $id);
+        return $this->synced($request, $type, $id, function (Collection $items) use ($locale) {
+            foreach ($items as $item) {
+                $item->translations()->where('locale', $locale)->delete();
+            }
+        });
     }
 
-    /** Refuse a mutation of a question's (or its options') translations while locked. */
-    private function guardUnlocked(string $type): void
+    /**
+     * Apply $edit to the entity's items — through {@see AnswerTextSync} for a
+     * question — and return the refreshed editor, or a preview's count of
+     * stored answers it would change.
+     */
+    private function synced(Request $request, string $type, int $id, callable $edit)
     {
-        if ($type === 'question' && $this->status->answersLocked()) {
-            throw ValidationException::withMessages(['locked' => __('registration::admin.editor_locked')]);
+        $entity = $this->entity($type, $id);
+        $apply = fn () => $edit($this->items($entity));
+
+        if (! $entity instanceof Question) {
+            $apply();
+
+            return $this->editor($type, $id);
         }
+
+        $changes = $this->sync->run($entity, $apply, $request->boolean('preview'));
+
+        return $request->boolean('preview') ? response()->json(['changes' => $changes]) : $this->editor($type, $id);
     }
 
     /** The translatable entity a route refers to, or 404. */
@@ -129,7 +138,6 @@ class TranslationController extends Controller
             'locales' => $items
                 ->flatMap(fn (Model $item) => $item->translations->pluck('locale'))
                 ->unique()->sort()->values(),
-            'locked' => $type === 'question' && $this->status->answersLocked(),
         ]);
     }
 }

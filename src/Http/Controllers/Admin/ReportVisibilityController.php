@@ -67,12 +67,6 @@ class ReportVisibilityController extends VisibilityRuleController
         return $this->destroyConditionFor($report, $condition);
     }
 
-    /** Report rules aren't wizard structure — they never lock. */
-    protected function honorsAnswerLock(): bool
-    {
-        return false;
-    }
-
     /** Row rules test registrants, so Participant-scope questions control them. */
     protected function controllingQuestions(Model $node): Collection
     {
