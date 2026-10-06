@@ -58,12 +58,4 @@ return [
     'group_leader_covers_heading' => 'Covered by Your Group Leader',
     'group_leader_covers_total' => 'Total Covered',
     'your_responsibility_heading' => 'Your Responsibility',
-
-    // Privacy notice shown above the registration forms (contains markup).
-    'privacy_notice' => '<b>Privacy notice:</b><br />
-At the conference, we will produce printed lists of attendants including your name (replaced by a nickname if you enter one), e-mail, name of organization and IT skills.<br />
-<br />
-If you do not wish to be included, please contact us by e-mail.<br />
-<br />
-We do not distribute this data in any digital form.',
 ];

@@ -29,12 +29,6 @@
                             </div>
                         @endif
 
-                        @if ($isFirst)
-                            <div class="alert alert-info">
-                                {!! __('registration::common.privacy_notice') !!}
-                            </div>
-                        @endif
-
                         @if ($groupMembersLinkVisible ?? false)
                             <a href="{{ $groupMembersUrl ?? route($routeName('register.group_members')) }}" class="btn btn-outline-secondary btn-sm mb-3">
                                 {{ __('registration::common.manage_group_members_link') }}
