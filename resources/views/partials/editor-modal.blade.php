@@ -82,6 +82,13 @@
         if (e.target.classList.contains('js-auto-submit')) {
             e.target.form.requestSubmit();
         }
+        if (e.target.classList.contains('js-scope-pick')) {
+            e.target.form.querySelectorAll('.js-scope-select').forEach(function (select) {
+                var picked = select.dataset.scope === e.target.value;
+                select.disabled = !picked;
+                select.classList.toggle('d-none', !picked);
+            });
+        }
     });
 
     // Submit every form inside the modal over AJAX and swap in the refreshed

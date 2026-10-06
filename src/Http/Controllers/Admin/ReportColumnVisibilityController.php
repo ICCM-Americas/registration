@@ -14,7 +14,8 @@ use Illuminate\Support\Collection;
  * Builds one report column's per-row cell rule — when the cell shows on a
  * given row (a failing rule blanks it). On guest rows the rule sees the
  * registrant's answers overlaid with the guest's own, so both Participant-
- * and Guest-scope questions may control it. The tree editing is shared with
+ * and Guest-scope questions may control it (on an Individual report, each
+ * only on rows of its own scope — see ReportRunner). The tree editing is shared with
  * the question-level editor ({@see VisibilityRuleController}); columns have
  * no "always hidden" state and their rules never lock.
  */
@@ -79,7 +80,7 @@ class ReportColumnVisibilityController extends VisibilityRuleController
     /** @return list<string> */
     protected function editorEagerLoads(): array
     {
-        return ['question', 'conditionGroups.conditions.question'];
+        return ['question', 'conditionGroups.conditions.question.section'];
     }
 
     /** @return array<string, mixed> */

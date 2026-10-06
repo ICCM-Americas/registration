@@ -2,6 +2,7 @@
 
 namespace ConferenceTools\Registration\Models;
 
+use ConferenceTools\Registration\Enums\ReportType;
 use ConferenceTools\Registration\Models\Concerns\HasRegistrationTable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -12,17 +13,19 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
  * An admin-defined report: a named listing of registrants (and optionally
  * their non-attending guests) whose columns are configured questions' answers
  * or built-in fields (see ReportColumn), and whose rows are filtered by a
- * visibility-style rule tree evaluated against each registrant's answers.
+ * visibility-style rule tree. Its type (see ReportType) decides whether that
+ * rule keeps whole families or each registrant and guest on their own.
  */
 class Report extends Model
 {
     use HasFactory, HasRegistrationTable;
 
     protected $fillable = [
-        'name', 'description', 'header', 'footer', 'include_adult_guests', 'include_minor_guests', 'position',
+        'name', 'description', 'type', 'header', 'footer', 'include_adult_guests', 'include_minor_guests', 'position',
     ];
 
     protected $casts = [
+        'type' => ReportType::class,
         'include_adult_guests' => 'boolean',
         'include_minor_guests' => 'boolean',
         'position' => 'integer',
@@ -48,7 +51,7 @@ class Report extends Model
 
     /**
      * The root of this report's row rule, if any. A report with no root group
-     * lists every registrant.
+     * lists every registrant (and every included guest).
      */
     public function conditionGroups(): MorphMany
     {

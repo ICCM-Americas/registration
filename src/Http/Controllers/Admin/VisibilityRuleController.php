@@ -9,6 +9,7 @@ use ConferenceTools\Registration\Http\Controllers\Controller;
 use ConferenceTools\Registration\Models\Condition;
 use ConferenceTools\Registration\Models\ConditionGroup;
 use ConferenceTools\Registration\Services\QuestionRepository;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -70,15 +71,46 @@ abstract class VisibilityRuleController extends Controller
     protected function editor(Model $node)
     {
         $node->load(...$this->editorEagerLoads());
+        $questionGroups = $this->questionGroups($node);
 
         return view('registration::admin.questions.visibility-editor', array_merge([
             'node' => $node,
             'rootGroups' => $node->conditionGroups,
-            'controllingQuestions' => $this->controllingQuestions($node),
+            'questionGroups' => $questionGroups,
+            'pickedScope' => $this->pickedScope($questionGroups),
             'controllingSubjects' => $this->controllingSubjects($node),
             'booleanOperators' => BooleanOperator::cases(),
             'conditionOperators' => ConditionOperator::cases(),
         ], $this->editorData($node)));
+    }
+
+    /**
+     * The controlling questions grouped by scope, in first-seen order, for
+     * the condition picker's registrant/guest toggle.
+     *
+     * @return list<array{scope: string, label: string, questions: Collection}>
+     */
+    private function questionGroups(Model $node): array
+    {
+        return EloquentCollection::make($this->controllingQuestions($node)->all())
+            ->loadMissing('section')
+            ->groupBy(fn ($question): string => $question->section->scope->value)
+            ->map(fn (Collection $questions, string $scope): array => [
+                'scope' => $scope,
+                'label' => __('registration::admin.visibility_scope_'.$scope),
+                'questions' => $questions->values(),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /** The picker's selected scope: the one just posted, else the first. */
+    private function pickedScope(array $questionGroups): ?string
+    {
+        $scopes = array_column($questionGroups, 'scope');
+        $requested = request()->input('question_scope');
+
+        return in_array($requested, $scopes, true) ? $requested : ($scopes[0] ?? null);
     }
 
     /** Start a rule: attach a root group to the node. */

@@ -4,6 +4,7 @@ namespace ConferenceTools\Registration\Tests\Feature;
 
 use ConferenceTools\Registration\Enums\ReportColumnDisplay;
 use ConferenceTools\Registration\Enums\ReportField;
+use ConferenceTools\Registration\Enums\ReportType;
 use ConferenceTools\Registration\Models\Question;
 use ConferenceTools\Registration\Models\Report;
 use ConferenceTools\Registration\Models\ReportColumn;
@@ -112,6 +113,7 @@ class ReportControllerTest extends TestCase
         $this->actingAs($this->makeUser())
             ->post(route('registration.admin.reports.store'), [
                 'name' => 'Kitchen Crew',
+                'type' => ReportType::Individual->value,
                 'description' => 'Who volunteers in the kitchen.',
                 'header' => 'Kitchen Crew Roster',
                 'footer' => 'Report a spill to the duty manager.',
@@ -120,10 +122,53 @@ class ReportControllerTest extends TestCase
 
         $report = Report::sole();
         $this->assertSame('Kitchen Crew', $report->name);
+        $this->assertSame(ReportType::Individual, $report->type);
         $this->assertSame('Kitchen Crew Roster', $report->header);
         $this->assertSame('Report a spill to the duty manager.', $report->footer);
         $this->assertTrue($report->include_adult_guests);
         $this->assertFalse($report->include_minor_guests);
+    }
+
+    #[DataProvider('invalidTypes')]
+    #[TestDox('storing a report requires a known type')]
+    public function test_storing_a_report_requires_a_known_type(?string $type): void
+    {
+        $this->actingAs($this->makeUser())
+            ->post(route('registration.admin.reports.store'), array_filter(['name' => 'Kitchen Crew', 'type' => $type]))
+            ->assertSessionHasErrors('type');
+
+        $this->assertSame(0, Report::count());
+    }
+
+    /** The rejected report types for the data provider. */
+    public static function invalidTypes(): array
+    {
+        return [
+            'missing' => [null],
+            'unknown' => ['everyone'],
+        ];
+    }
+
+    #[DataProvider('typeScreens')]
+    #[TestDox('the create form offers every type and the editor and list show the fixed one')]
+    public function test_the_create_form_offers_every_type_and_the_editor_and_list_show_the_fixed_one(string $route, bool $withReport, array $expected): void
+    {
+        $parameters = $withReport ? [$this->report(['type' => ReportType::Individual])] : [];
+
+        $this->actingAs($this->makeUser())
+            ->get(route($route, $parameters))
+            ->assertOk()
+            ->assertSeeInOrder($expected, false);
+    }
+
+    /** The screens showing report types for the data provider. */
+    public static function typeScreens(): array
+    {
+        return [
+            'create' => ['registration.admin.reports.create', false, ['name="type" value="registrant"', 'name="type" value="individual"']],
+            'edit' => ['registration.admin.reports.edit', true, ['Individual', 'Lists registrants and included guests as separate entries']],
+            'list' => ['registration.admin.reports', true, ['Individual']],
+        ];
     }
 
     #[TestDox('updating a report saves the definition fields')]
@@ -139,10 +184,12 @@ class ReportControllerTest extends TestCase
                 'footer' => 'New Footer',
                 'include_adult_guests' => '0',
                 'include_minor_guests' => '1',
+                'type' => ReportType::Individual->value,
             ])->assertRedirect(route('registration.admin.reports.edit', $report));
 
         $report->refresh();
         $this->assertSame('Renamed', $report->name);
+        $this->assertSame(ReportType::Registrant, $report->type, 'the type is fixed at creation');
         $this->assertSame('New Header', $report->header);
         $this->assertSame('New Footer', $report->footer);
         $this->assertFalse($report->include_adult_guests);

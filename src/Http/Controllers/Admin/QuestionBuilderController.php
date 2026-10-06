@@ -185,7 +185,7 @@ class QuestionBuilderController extends Controller
 
         $question = Question::create([
             'section_id' => $section->id,
-            'key' => $this->uniqueQuestionKey($section->scope, ($data['key'] ?? '') ?: $data['label']),
+            'key' => $this->uniqueQuestionKey(($data['key'] ?? '') ?: $data['label']),
             'type' => $data['type'],
             'label' => $data['label'],
             'help_text' => $data['help_text'] ?? null,
@@ -256,7 +256,7 @@ class QuestionBuilderController extends Controller
             // literal elsewhere (RegistrationController, SystemQuestionsSeeder)
             // and must stay stable — the form doesn't offer them for editing,
             // but a submitted change is ignored here too, as a backstop.
-            'key' => $question->is_system ? $question->key : $this->uniqueQuestionKey($section->scope, ($data['key'] ?? '') ?: $data['label'], $question),
+            'key' => $question->is_system ? $question->key : $this->uniqueQuestionKey(($data['key'] ?? '') ?: $data['label'], $question),
             'type' => $question->is_system ? $question->type : $data['type'],
             'label' => $data['label'],
             'help_text' => $data['help_text'] ?? null,
@@ -580,16 +580,14 @@ class QuestionBuilderController extends Controller
         return $this->makeUnique(Str::slug($title) ?: 'section', fn (string $candidate) => Section::where('scope', $scope)->where('key', $candidate)->exists());
     }
 
-    /** A slug key for a question, made unique within its scope. */
-    private function uniqueQuestionKey(QuestionScope|string $scope, string $base, ?Question $ignore = null): string
+    /** A slug key for a question, made unique across every scope. */
+    private function uniqueQuestionKey(string $base, ?Question $ignore = null): string
     {
-        $scope = $scope instanceof QuestionScope ? $scope->value : $scope;
         $base = Str::slug($base, '_') ?: 'question';
 
-        return $this->makeUnique($base, function (string $candidate) use ($scope, $ignore) {
+        return $this->makeUnique($base, function (string $candidate) use ($ignore) {
             return Question::where('key', $candidate)
                 ->when($ignore, fn ($q) => $q->whereKeyNot($ignore->getKey()))
-                ->whereHas('section', fn ($s) => $s->where('scope', $scope))
                 ->exists();
         });
     }

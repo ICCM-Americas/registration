@@ -45,10 +45,10 @@ class MyGuestControllerTest extends TestCase
             'scope' => QuestionScope::Guest->value, 'key' => 'guest-details', 'title' => 'Guest Details', 'position' => 0, 'enabled' => true,
         ]);
         Question::create([
-            'section_id' => $guestSection->id, 'key' => 'name', 'type' => QuestionType::Text->value,
+            'section_id' => $guestSection->id, 'key' => 'guestname', 'type' => QuestionType::Text->value,
             'label' => 'Guest name', 'position' => 0, 'required' => false, 'enabled' => true,
         ]);
-        app(GuestQuestions::class)->update(['guest_name_key' => 'name']);
+        app(GuestQuestions::class)->update(['guest_name_key' => 'guestname']);
     }
 
     #[TestDox('hub 404s for a user who has not registered')]
@@ -65,7 +65,7 @@ class MyGuestControllerTest extends TestCase
         $group = $this->makeGroupWithMembers();
         $leader = $group->admin();
         $guest = Guest::create(['user_id' => $leader->id, 'type' => 'adult', 'position' => 0]);
-        $this->storeAnswers($guest, QuestionScope::Guest, ['name' => 'Stay Home']);
+        $this->storeAnswers($guest, QuestionScope::Guest, ['guestname' => 'Stay Home']);
 
         $this->actingAs($leader)
             ->get(route('registration.mine.guests'))
@@ -82,22 +82,22 @@ class MyGuestControllerTest extends TestCase
 
         $this->get(route('registration.mine.guests'))->assertOk()->assertSee(__('registration::common.guest_list_empty'));
 
-        $this->post(route('registration.mine.guests.store'), ['guest_type' => 'adult', 'name' => 'Stay Home'])
+        $this->post(route('registration.mine.guests.store'), ['guest_type' => 'adult', 'guestname' => 'Stay Home'])
             ->assertRedirect(route('registration.mine.guests'));
 
         $this->assertSame(1, Guest::count());
         $guest = Guest::first();
         $this->assertSame($leader->id, $guest->user_id);
-        $this->assertSame('Stay Home', $guest->registrationAnswers()->value('name'));
+        $this->assertSame('Stay Home', $guest->registrationAnswers()->value('guestname'));
 
         $this->get(route('registration.mine.guests.edit', $guest))
             ->assertOk()
             ->assertSee('value="Stay Home"', false);
 
-        $this->post(route('registration.mine.guests.update', $guest), ['name' => 'Staying Home Still'])
+        $this->post(route('registration.mine.guests.update', $guest), ['guestname' => 'Staying Home Still'])
             ->assertRedirect(route('registration.mine.guests'));
         $guest->refreshRegistrationAnswers();
-        $this->assertSame('Staying Home Still', $guest->registrationAnswers()->value('name'));
+        $this->assertSame('Staying Home Still', $guest->registrationAnswers()->value('guestname'));
 
         $this->delete(route('registration.mine.guests.destroy', $guest))
             ->assertRedirect(route('registration.mine.guests'));
@@ -112,13 +112,13 @@ class MyGuestControllerTest extends TestCase
         $leader = $group->admin();
         $this->actingAs($leader);
 
-        $this->post(route('registration.mine.guests.store'), ['guest_type' => 'adult', 'name' => 'First'])->assertRedirect();
+        $this->post(route('registration.mine.guests.store'), ['guest_type' => 'adult', 'guestname' => 'First'])->assertRedirect();
         $first = Guest::first();
-        $this->post(route('registration.mine.guests.store'), ['guest_type' => 'adult', 'name' => 'Second'])->assertRedirect();
+        $this->post(route('registration.mine.guests.store'), ['guest_type' => 'adult', 'guestname' => 'Second'])->assertRedirect();
 
         $this->delete(route('registration.mine.guests.destroy', $first))->assertRedirect();
 
-        $this->post(route('registration.mine.guests.store'), ['guest_type' => 'adult', 'name' => 'Third'])->assertRedirect();
+        $this->post(route('registration.mine.guests.store'), ['guest_type' => 'adult', 'guestname' => 'Third'])->assertRedirect();
 
         $third = Guest::orderBy('id', 'desc')->first();
         $this->assertSame(2, $third->position);
@@ -135,7 +135,7 @@ class MyGuestControllerTest extends TestCase
 
         $this->actingAs($other);
         $this->get(route('registration.mine.guests.edit', $otherGuest))->assertNotFound();
-        $this->post(route('registration.mine.guests.update', $otherGuest), ['name' => 'x'])->assertNotFound();
+        $this->post(route('registration.mine.guests.update', $otherGuest), ['guestname' => 'x'])->assertNotFound();
         $this->delete(route('registration.mine.guests.destroy', $otherGuest))->assertNotFound();
     }
 
@@ -145,7 +145,7 @@ class MyGuestControllerTest extends TestCase
         $group = $this->makeGroupWithMembers();
         $leader = $group->admin();
         $guest = Guest::create(['user_id' => $leader->id, 'type' => 'adult', 'position' => 0]);
-        $this->storeAnswers($guest, QuestionScope::Guest, ['name' => 'Stay Home']);
+        $this->storeAnswers($guest, QuestionScope::Guest, ['guestname' => 'Stay Home']);
 
         $room = RoomAssignment::factory()->forGuest()->create(['assignable_id' => $guest->id]);
         $pals = PrayerPalsAssignment::factory()->forGuest()->create(['assignable_id' => $guest->id]);
@@ -169,9 +169,9 @@ class MyGuestControllerTest extends TestCase
         $this->actingAs($leader);
         $this->get(route('registration.mine.guests'))->assertNotFound();
         $this->get(route('registration.mine.guests.create'))->assertNotFound();
-        $this->post(route('registration.mine.guests.store'), ['guest_type' => 'adult', 'name' => 'x'])->assertNotFound();
+        $this->post(route('registration.mine.guests.store'), ['guest_type' => 'adult', 'guestname' => 'x'])->assertNotFound();
         $this->get(route('registration.mine.guests.edit', $guest))->assertNotFound();
-        $this->post(route('registration.mine.guests.update', $guest), ['name' => 'x'])->assertNotFound();
+        $this->post(route('registration.mine.guests.update', $guest), ['guestname' => 'x'])->assertNotFound();
         $this->delete(route('registration.mine.guests.destroy', $guest))->assertNotFound();
 
         $this->assertSame(1, Guest::count(), 'no side effect happened: still just the pre-existing guest, store refused and destroy refused');

@@ -61,11 +61,11 @@ class TestGuestControllerTest extends TestCase
             'scope' => QuestionScope::Guest->value, 'key' => 'guest-details', 'title' => 'Guest Details', 'position' => 0, 'enabled' => true,
         ]);
         Question::create([
-            'section_id' => $guestSection->id, 'key' => 'name', 'type' => QuestionType::Text->value,
+            'section_id' => $guestSection->id, 'key' => 'guestname', 'type' => QuestionType::Text->value,
             'label' => 'Guest name', 'position' => 0, 'required' => false, 'enabled' => true,
         ]);
 
-        app(GuestQuestions::class)->update(['guest_name_key' => 'name']);
+        app(GuestQuestions::class)->update(['guest_name_key' => 'guestname']);
     }
 
     /** Seed the session run as if the trigger step were already submitted "Yes". */
@@ -91,7 +91,7 @@ class TestGuestControllerTest extends TestCase
         $this->startTriggeredRun();
 
         $this->post(route('registration.admin.test.guests.store'), [
-            'guest_type' => 'adult', 'name' => 'Session Guest',
+            'guest_type' => 'adult', 'guestname' => 'Session Guest',
         ])->assertRedirect(route('registration.admin.test.guests'));
 
         // Nothing hit the database.
@@ -114,7 +114,7 @@ class TestGuestControllerTest extends TestCase
         $this->startTriggeredRun();
 
         $this->post(route('registration.admin.test.guests.store'), [
-            'guest_type' => 'minor', 'name' => 'Kid',
+            'guest_type' => 'minor', 'guestname' => 'Kid',
         ]);
         $guestId = TestDraft::fromSession()->guests[0]['id'];
 
@@ -122,9 +122,9 @@ class TestGuestControllerTest extends TestCase
             ->assertOk()
             ->assertSee('value="Kid"', false);
 
-        $this->post(route('registration.admin.test.guests.update', $guestId), ['name' => 'Kid Updated'])
+        $this->post(route('registration.admin.test.guests.update', $guestId), ['guestname' => 'Kid Updated'])
             ->assertRedirect(route('registration.admin.test.guests'));
-        $this->assertSame('Kid Updated', TestDraft::fromSession()->guests[0]['answers']['name']);
+        $this->assertSame('Kid Updated', TestDraft::fromSession()->guests[0]['answers']['guestname']);
 
         $this->delete(route('registration.admin.test.guests.destroy', $guestId))
             ->assertRedirect(route('registration.admin.test.guests'));
@@ -142,7 +142,7 @@ class TestGuestControllerTest extends TestCase
             ->assertRedirect(route('registration.admin.test.guests'));
 
         $this->post(route('registration.admin.test.guests.store'), [
-            'guest_type' => 'adult', 'name' => 'Never Saved',
+            'guest_type' => 'adult', 'guestname' => 'Never Saved',
         ])->assertRedirect(route('registration.admin.test.guests'));
         $this->assertCount(1, TestDraft::fromSession()->guests);
 

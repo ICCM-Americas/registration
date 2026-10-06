@@ -7,6 +7,7 @@ use ConferenceTools\Registration\Enums\ConditionOperator;
 use ConferenceTools\Registration\Enums\QuestionScope;
 use ConferenceTools\Registration\Enums\ReportColumnDisplay;
 use ConferenceTools\Registration\Enums\ReportField;
+use ConferenceTools\Registration\Enums\ReportType;
 use ConferenceTools\Registration\Models\Question;
 use ConferenceTools\Registration\Models\Report;
 use ConferenceTools\Registration\Models\ReportColumn;
@@ -23,6 +24,8 @@ use Illuminate\Database\Seeder;
  * nomination settings pointed at when it runs. Settings whose code constants
  * were retired with the hard-coded reports are read by their literal setting
  * strings; a column or rule whose nominated question is unset is skipped.
+ * Special Needs is an Individual report (each registrant and guest on their
+ * own); the rest are Registrant reports.
  * Names and descriptions are plain English literals held on the rows — admin
  * content, editable afterward, NOT lang-file entries.
  *
@@ -151,10 +154,14 @@ class DefaultReportsSeeder extends Seeder
         return $tokens === '' ? '' : "{{$tokens}}";
     }
 
-    /** Registrants who answered the special-needs question, with their answer. */
+    /**
+     * Registrants who answered the special-needs question, with their answer —
+     * an Individual report, so a guest-question condition added later lists
+     * those guests on their own.
+     */
     private function seedSpecialNeeds(): void
     {
-        $report = $this->rebuild('Special Needs', 'The list of special needs.', adults: false, minors: false, position: 50);
+        $report = $this->rebuild('Special Needs', 'The list of special needs.', adults: false, minors: false, position: 50, type: ReportType::Individual);
 
         $specialNeeds = $this->participantQuestion('report_special_needs_key');
 
@@ -177,10 +184,11 @@ class DefaultReportsSeeder extends Seeder
     }
 
     /** Upsert the report row by name and wipe its columns and rules for rebuilding. */
-    private function rebuild(string $name, string $description, bool $adults, bool $minors, int $position): Report
+    private function rebuild(string $name, string $description, bool $adults, bool $minors, int $position, ReportType $type = ReportType::Registrant): Report
     {
         $report = Report::updateOrCreate(['name' => $name], [
             'description' => $description,
+            'type' => $type,
             'include_adult_guests' => $adults,
             'include_minor_guests' => $minors,
             'position' => $position,

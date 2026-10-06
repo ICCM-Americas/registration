@@ -50,13 +50,12 @@ class GuestControllerTest extends TestCase
             'scope' => QuestionScope::Guest->value, 'key' => 'guest-details', 'title' => 'Guest Details', 'position' => 0, 'enabled' => true,
         ]);
         $name = Question::create([
-            'section_id' => $guestSection->id, 'key' => 'name', 'type' => QuestionType::Text->value,
+            'section_id' => $guestSection->id, 'key' => 'guestname', 'type' => QuestionType::Text->value,
             'label' => 'Guest name', 'position' => 0, 'required' => false, 'enabled' => true,
         ]);
         // A note question only visible once the guest's own name is answered —
         // regression-guards that a guest's visibility never bleeds into
-        // another owner's answers (there's also a Participant-scope "name"
-        // question with a different value, which must never satisfy this rule).
+        // another owner's answers.
         $note = Question::create([
             'section_id' => $guestSection->id, 'key' => 'note', 'type' => QuestionType::Text->value,
             'label' => 'Note', 'position' => 1, 'required' => false, 'enabled' => true,
@@ -64,7 +63,7 @@ class GuestControllerTest extends TestCase
         $group = $note->conditionGroups()->create(['operator' => BooleanOperator::And->value]);
         $group->conditions()->create(['question_id' => $name->id, 'operator' => ConditionOperator::IsAnswered->value, 'value' => null]);
 
-        app(GuestQuestions::class)->update(['guest_name_key' => 'name']);
+        app(GuestQuestions::class)->update(['guest_name_key' => 'guestname']);
     }
 
     #[TestDox('hub 404s until the trigger is answered yes')]
@@ -86,14 +85,14 @@ class GuestControllerTest extends TestCase
         $this->get(route('registration.register.guests.create'))->assertOk()->assertSee('name="guest_type"', false);
 
         $this->post(route('registration.register.guests.store'), [
-            'guest_type' => 'minor', 'name' => 'Kid', 'note' => 'Allergic to peanuts',
+            'guest_type' => 'minor', 'guestname' => 'Kid', 'note' => 'Allergic to peanuts',
         ])->assertRedirect(route('registration.register.guests'));
 
         $draft = Draft::where('user_id', $user->id)->first();
         $this->assertCount(1, $draft->guests);
         $guestId = $draft->guests[0]['id'];
         $this->assertSame('minor', $draft->guests[0]['type']);
-        $this->assertSame(['name' => 'Kid', 'note' => 'Allergic to peanuts'], $draft->guests[0]['answers']);
+        $this->assertSame(['guestname' => 'Kid', 'note' => 'Allergic to peanuts'], $draft->guests[0]['answers']);
 
         $this->get(route('registration.register.guests.edit', $guestId))
             ->assertOk()
@@ -104,11 +103,11 @@ class GuestControllerTest extends TestCase
             ->assertDontSee('type="radio" id="guest_type_', false)
             ->assertSee('type="hidden" name="guest_type" value="minor"', false);
 
-        $this->post(route('registration.register.guests.update', $guestId), ['name' => 'Kid Updated'])
+        $this->post(route('registration.register.guests.update', $guestId), ['guestname' => 'Kid Updated'])
             ->assertRedirect(route('registration.register.guests'));
 
         $draft->refresh();
-        $this->assertSame('Kid Updated', $draft->guests[0]['answers']['name']);
+        $this->assertSame('Kid Updated', $draft->guests[0]['answers']['guestname']);
         $this->assertSame('minor', $draft->guests[0]['type']); // unaffected by update
 
         $this->delete(route('registration.register.guests.destroy', $guestId))
@@ -124,10 +123,10 @@ class GuestControllerTest extends TestCase
         Draft::factory()->create(['user_id' => $user->id, 'answers' => [Question::GUEST_TRIGGER_KEY => 'Yes']]);
         $this->actingAs($user);
 
-        // "note" requires this guest's own "name" to be answered — submitting
+        // "note" requires this guest's own "guestname" to be answered — submitting
         // both together must store the note.
         $this->post(route('registration.register.guests.store'), [
-            'guest_type' => 'adult', 'name' => 'Ada', 'note' => 'VIP',
+            'guest_type' => 'adult', 'guestname' => 'Ada', 'note' => 'VIP',
         ])->assertRedirect(route('registration.register.guests'));
 
         $draft = Draft::where('user_id', $user->id)->first();
@@ -161,12 +160,12 @@ class GuestControllerTest extends TestCase
 
         // A minor's submitted "yes" is dropped, same as any other hidden field.
         $this->post(route('registration.register.guests.store'), [
-            'guest_type' => 'minor', 'name' => 'Kid', 'photos' => 'yes',
+            'guest_type' => 'minor', 'guestname' => 'Kid', 'photos' => 'yes',
         ])->assertRedirect(route('registration.register.guests'));
 
         // An adult's own answer is kept.
         $this->post(route('registration.register.guests.store'), [
-            'guest_type' => 'adult', 'name' => 'Grownup', 'photos' => 'yes',
+            'guest_type' => 'adult', 'guestname' => 'Grownup', 'photos' => 'yes',
         ])->assertRedirect(route('registration.register.guests'));
 
         $draft = Draft::where('user_id', $user->id)->first();

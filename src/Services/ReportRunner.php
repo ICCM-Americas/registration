@@ -7,6 +7,7 @@ use ConferenceTools\Registration\Enums\QuestionScope;
 use ConferenceTools\Registration\Enums\ReportColumnDisplay;
 use ConferenceTools\Registration\Enums\ReportColumnMappingGuest;
 use ConferenceTools\Registration\Enums\ReportField;
+use ConferenceTools\Registration\Enums\ReportType;
 use ConferenceTools\Registration\Models\Guest;
 use ConferenceTools\Registration\Models\Question;
 use ConferenceTools\Registration\Models\QuestionOption;
@@ -17,13 +18,16 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 
 /**
- * Runs an admin-defined report: the registrant rows its rule tree keeps
- * (evaluated against each registrant's committed answers), each followed by
- * the registrant's non-attending guests when the report includes them. Every
- * cell honors its column's own per-row rule — on a guest row, rules see the
- * registrant's answers overlaid with the guest's own, so a Participant-scope
- * condition applies to the whole family while a Guest-scope one can still
- * target the guest itself.
+ * Runs an admin-defined report. A Registrant report lists the registrants its
+ * rule tree keeps (evaluated against each registrant's committed answers),
+ * each followed by their non-attending guests when the report includes them;
+ * cell rules on a guest row see the registrant's answers overlaid with the
+ * guest's own, so a Participant-scope condition applies to the whole family
+ * while a Guest-scope one can still target the guest itself. An Individual
+ * report keeps or drops each registrant and included guest on their own: a
+ * registrant question's condition decides only registrant rows and a guest
+ * question's only guest rows, for row and cell rules alike, and a
+ * Participant-question cell stays blank on a guest row.
  */
 class ReportRunner
 {
@@ -54,6 +58,25 @@ class ReportRunner
     public function rows(Report $report): Collection
     {
         $columns = $this->columns($report);
+        $report->loadMissing('conditionGroups.conditions.question.section');
+
+        $rows = $report->type === ReportType::Individual
+            ? $this->individualRows($report, $columns)
+            : $this->registrantRows($report, $columns);
+
+        $this->interpolator->setAnswers(null);
+
+        return $rows;
+    }
+
+    /**
+     * A Registrant report's rows: each kept registrant, followed by their
+     * included guests.
+     *
+     * @return Collection<int, array<int, ?string>>
+     */
+    private function registrantRows(Report $report, Collection $columns): Collection
+    {
         $rows = collect();
 
         foreach ($this->registrants->all() as $user) {
@@ -62,15 +85,47 @@ class ReportRunner
                 continue;
             }
 
-            $rows->push($this->row($columns, $user, null, $context));
+            $rows->push($this->row($columns, $user, null, $context, null));
             foreach ($this->includedGuests($report, $user) as $guest) {
-                $rows->push($this->row($columns, $user, $guest, array_merge($context, $guest->registrationAnswers()->values())));
+                $rows->push($this->row($columns, $user, $guest, $this->guestContext($context, $guest), null));
             }
         }
 
-        $this->interpolator->setAnswers(null);
+        return $rows;
+    }
+
+    /**
+     * An Individual report's rows: each registrant and included guest the
+     * rule keeps for their own scope, in registrant order — so a guest row
+     * may appear without its registrant's.
+     *
+     * @return Collection<int, array<int, ?string>>
+     */
+    private function individualRows(Report $report, Collection $columns): Collection
+    {
+        $rows = collect();
+
+        foreach ($this->registrants->all() as $user) {
+            $context = $user->registrationAnswers()->values();
+            if ($this->evaluator->passesForScope($report->conditionGroups, $context, QuestionScope::Participant)) {
+                $rows->push($this->row($columns, $user, null, $context, QuestionScope::Participant));
+            }
+
+            foreach ($this->includedGuests($report, $user) as $guest) {
+                $guestContext = $this->guestContext($context, $guest);
+                if ($this->evaluator->passesForScope($report->conditionGroups, $guestContext, QuestionScope::Guest)) {
+                    $rows->push($this->row($columns, $user, $guest, $guestContext, QuestionScope::Guest));
+                }
+            }
+        }
 
         return $rows;
+    }
+
+    /** A guest row's answers: the registrant's overlaid with the guest's own. */
+    private function guestContext(array $registrantContext, Guest $guest): array
+    {
+        return array_merge($registrantContext, $guest->registrationAnswers()->values());
     }
 
     /** @return Collection<int, ReportColumn> the columns with their questions eager-loaded */
@@ -96,12 +151,13 @@ class ReportRunner
     }
 
     /**
-     * One row's cells. $guest is null on the registrant's own row.
+     * One row's cells. $guest is null on the registrant's own row; $rowScope
+     * is the row's own scope on an Individual report, null on a Registrant one.
      *
      * @param  array<string, mixed>  $context  the row's rule-evaluation answers
      * @return array<int, ?string>
      */
-    private function row(Collection $columns, Model $user, ?Guest $guest, array $context): array
+    private function row(Collection $columns, Model $user, ?Guest $guest, array $context, ?QuestionScope $rowScope): array
     {
         // The row's own answers, for a mapped column's interpolated targets
         // ({@see mappedValue()}) — the same context {@see VisibilityEvaluator}
@@ -109,19 +165,22 @@ class ReportRunner
         $this->interpolator->setAnswers($context);
 
         return $columns
-            ->map(fn (ReportColumn $column): ?string => $this->cell($column, $user, $guest, $context))
+            ->map(fn (ReportColumn $column): ?string => $this->cell($column, $user, $guest, $context, $rowScope))
             ->all();
     }
 
     /** One cell: blank when the column's per-row rule fails, resolved otherwise. */
-    private function cell(ReportColumn $column, Model $user, ?Guest $guest, array $context): ?string
+    private function cell(ReportColumn $column, Model $user, ?Guest $guest, array $context, ?QuestionScope $rowScope): ?string
     {
-        if (! $this->evaluator->passes($column->conditionGroups, $context)) {
+        $passes = $rowScope === null
+            ? $this->evaluator->passes($column->conditionGroups, $context)
+            : $this->evaluator->passesForScope($column->conditionGroups, $context, $rowScope);
+        if (! $passes) {
             return null;
         }
 
         return match (true) {
-            $column->question !== null => $this->questionCell($column, $user, $guest),
+            $column->question !== null => $this->questionCell($column, $user, $guest, $rowScope),
             $column->field !== null => $this->builtinCell($column->field, $user, $guest),
             // A custom column with neither: always blank, for the admin to fill in by hand.
             default => null,
@@ -129,10 +188,10 @@ class ReportRunner
     }
 
     /** A question column's cell, from the owner the driving question's scope points at. */
-    private function questionCell(ReportColumn $column, Model $user, ?Guest $guest): ?string
+    private function questionCell(ReportColumn $column, Model $user, ?Guest $guest, ?QuestionScope $rowScope): ?string
     {
         $question = $this->drivingQuestion($column, $guest);
-        $bag = $this->bagFor($question, $user, $guest);
+        $bag = $this->bagFor($question, $user, $guest, $rowScope);
 
         // Mapped display alone may cross scope: a guest-filtered wildcard
         // entry ({@see entryMatches()}) can supply text regardless of the
@@ -174,12 +233,13 @@ class ReportRunner
      * a guest_question_id override (see {@see drivingQuestion()}), which is
      * typically Guest scope itself. Guest scope resolves to the row's own
      * guest and stays null on a registrant row, which has no single guest to
-     * point at.
+     * point at. On an Individual report's guest row, Participant scope stays
+     * null too: the guest is not their registrant.
      */
-    private function bagFor(Question $question, Model $user, ?Guest $guest): ?AnswerBag
+    private function bagFor(Question $question, Model $user, ?Guest $guest, ?QuestionScope $rowScope): ?AnswerBag
     {
         return match ($question->section?->scope) {
-            QuestionScope::Participant => $user->registrationAnswers(),
+            QuestionScope::Participant => $rowScope === QuestionScope::Guest ? null : $user->registrationAnswers(),
             QuestionScope::Group => $user->group?->registrationAnswers(),
             QuestionScope::Guest => $guest?->registrationAnswers(),
             default => null,

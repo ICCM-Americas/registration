@@ -25,6 +25,24 @@
 
         <div class="card mb-4">
             <div class="card-body">
+                @if ($report->exists)
+                    <p>
+                        {{ __('registration::admin.report_type') }}: <strong>{{ $report->type->label() }}</strong>
+                        <small class="text-muted d-block">{{ $report->type->description() }}</small>
+                    </p>
+                @else
+                    <fieldset class="form-group" id="report-type">
+                        <legend class="col-form-label pt-0">{{ __('registration::admin.report_type') }}</legend>
+                        @foreach ($types as $type)
+                            <label class="iccm-checkbox-row">
+                                <input type="radio" name="type" value="{{ $type->value }}" required @checked(old('type') === $type->value)>
+                                <span><strong>{{ $type->label() }}</strong> — <span class="font-weight-normal">{{ $type->description() }}</span></span>
+                            </label>
+                        @endforeach
+                        @error('type')<span class="invalid-feedback d-block">{{ $message }}</span>@enderror
+                    </fieldset>
+                @endif
+
                 <div class="form-group">
                     <label for="report-name">{{ __('registration::admin.report_name') }}</label>
                     <input type="text" id="report-name" name="name" value="{{ old('name', $report->name) }}"
@@ -55,18 +73,22 @@
                     <small class="form-text text-muted">{{ __('registration::admin.report_footer_hint') }}</small>
                 </div>
 
-                <div class="form-group form-check mb-2">
+                <div class="form-group mb-2">
                     <input type="hidden" name="include_adult_guests" value="0">
-                    <input type="checkbox" name="include_adult_guests" id="include_adult_guests" value="1" class="form-check-input"
-                           {{ old('include_adult_guests', $report->include_adult_guests) ? 'checked' : '' }}>
-                    <label class="form-check-label" for="include_adult_guests">{{ __('registration::admin.report_include_adult_guests') }}</label>
+                    <label class="iccm-checkbox-row">
+                        <input type="checkbox" name="include_adult_guests" id="include_adult_guests" value="1"
+                               {{ old('include_adult_guests', $report->include_adult_guests) ? 'checked' : '' }}>
+                        <span>{{ __('registration::admin.report_include_adult_guests') }}</span>
+                    </label>
                 </div>
 
-                <div class="form-group form-check mb-3">
+                <div class="form-group mb-3">
                     <input type="hidden" name="include_minor_guests" value="0">
-                    <input type="checkbox" name="include_minor_guests" id="include_minor_guests" value="1" class="form-check-input"
-                           {{ old('include_minor_guests', $report->include_minor_guests) ? 'checked' : '' }}>
-                    <label class="form-check-label" for="include_minor_guests">{{ __('registration::admin.report_include_minor_guests') }}</label>
+                    <label class="iccm-checkbox-row">
+                        <input type="checkbox" name="include_minor_guests" id="include_minor_guests" value="1"
+                               {{ old('include_minor_guests', $report->include_minor_guests) ? 'checked' : '' }}>
+                        <span>{{ __('registration::admin.report_include_minor_guests') }}</span>
+                    </label>
                 </div>
 
                 <button type="submit" class="btn btn-primary">{{ __('registration::admin.save') }}</button>
@@ -136,7 +158,7 @@
             <div class="card-header">{{ __('registration::admin.report_rules') }}</div>
             <div class="card-body">
                 <p class="text-muted">
-                    {{ __('registration::admin.report_rules_intro') }}
+                    {{ $report->type === \ConferenceTools\Registration\Enums\ReportType::Individual ? __('registration::admin.report_individual_rules_intro') : __('registration::admin.report_rules_intro') }}
                     <span class="badge badge-light border{{ $report->conditionGroups->isNotEmpty() ? '' : ' d-none' }}" data-badge="conditional">{{ __('registration::admin.badge_conditional') }}</span>
                 </p>
                 <a href="{{ route($routeName('admin.reports.visibility'), $report) }}" class="btn btn-outline-secondary js-editor-link">

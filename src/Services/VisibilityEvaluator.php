@@ -4,6 +4,7 @@ namespace ConferenceTools\Registration\Services;
 
 use ConferenceTools\Registration\Enums\BooleanOperator;
 use ConferenceTools\Registration\Enums\ConditionOperator;
+use ConferenceTools\Registration\Enums\QuestionScope;
 use ConferenceTools\Registration\Models\Condition;
 use ConferenceTools\Registration\Models\ConditionGroup;
 use ConferenceTools\Registration\Models\Question;
@@ -51,13 +52,23 @@ class VisibilityEvaluator
      */
     public function passes(iterable $rootGroups, array $answers): bool
     {
-        foreach ($rootGroups as $group) {
-            if (! $this->evaluateGroup($group, $answers)) {
-                return false;
-            }
-        }
+        return $this->rootsPass($rootGroups, $answers, null);
+    }
 
-        return true;
+    /**
+     * {@see passes()} for one row of an Individual report: a condition on a
+     * question of another scope than the row's is skipped, so a registrant
+     * question decides only registrant rows and a guest question only guest
+     * rows. A subgroup whose every condition was skipped drops out of its
+     * parent, and a rule left with nothing that applies fails: only a
+     * condition of the row's own scope can keep it. No rule at all passes.
+     *
+     * @param  iterable<int, ConditionGroup>  $rootGroups
+     * @param  array<string, mixed>  $answers  question key => answer value(s)
+     */
+    public function passesForScope(iterable $rootGroups, array $answers, QuestionScope $rowScope): bool
+    {
+        return $this->rootsPass($rootGroups, $answers, $rowScope);
     }
 
     /**
@@ -92,27 +103,54 @@ class VisibilityEvaluator
             ?? $matching->first();
     }
 
-    /** Whether a condition group passes: AND needs every child, OR needs any. */
-    private function evaluateGroup(ConditionGroup $group, array $answers): bool
+    /** Whether every root group passes; with a row scope, a root with nothing applicable (null) fails. */
+    private function rootsPass(iterable $rootGroups, array $answers, ?QuestionScope $rowScope): bool
+    {
+        foreach ($rootGroups as $group) {
+            if ($this->evaluateGroup($group, $answers, $rowScope) !== true) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Whether a condition group passes: AND needs every child, OR needs any.
+     * With a row scope, conditions on other scopes' questions are skipped,
+     * and a group left with nothing applicable is null rather than passing.
+     */
+    private function evaluateGroup(ConditionGroup $group, array $answers, ?QuestionScope $rowScope): ?bool
     {
         $results = [];
 
         foreach ($group->conditions as $condition) {
-            $results[] = $this->evaluateCondition($condition, $answers);
+            if ($rowScope === null || $this->appliesTo($condition, $rowScope)) {
+                $results[] = $this->evaluateCondition($condition, $answers);
+            }
         }
 
         foreach ($group->children as $child) {
-            $results[] = $this->evaluateGroup($child, $answers);
+            $result = $this->evaluateGroup($child, $answers, $rowScope);
+            if ($result !== null) {
+                $results[] = $result;
+            }
         }
 
         // An empty group imposes no constraint.
         if ($results === []) {
-            return true;
+            return $rowScope === null ? true : null;
         }
 
         return $group->operator === BooleanOperator::Or
             ? in_array(true, $results, true)
             : ! in_array(false, $results, true);
+    }
+
+    /** Whether a condition tests a question of the row's scope (a built-in subject always applies). */
+    private function appliesTo(Condition $condition, QuestionScope $rowScope): bool
+    {
+        return $condition->subject !== null || $condition->question?->section?->scope === $rowScope;
     }
 
     /** Whether one leaf condition holds against the answers. */

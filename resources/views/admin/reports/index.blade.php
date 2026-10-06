@@ -27,6 +27,7 @@
                 @foreach ($reports as $report)
                     <div class="iccm-row iccm-row-wide">
                         <a href="{{ route($routeName('admin.reports.show'), $report) }}" class="btn btn-primary iccm-field-12">{{ $report->name }}</a>
+                        <span class="badge badge-light border">{{ $report->type->label() }}</span>
                         <a href="{{ route($routeName('admin.reports.edit'), $report) }}" class="btn btn-outline-secondary btn-sm">{{ __('registration::admin.edit') }}</a>
                         <form method="POST" action="{{ route($routeName('admin.reports.destroy'), $report) }}"
                               class="js-confirm-submit" data-confirm="{{ __('registration::admin.report_delete_confirm') }}">

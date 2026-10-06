@@ -258,6 +258,7 @@ return [
     'question_label_characters' => 'characters',
     'question_key' => 'Key (machine name)',
     'question_key_hint' => 'Leave blank to derive from the label. Used as the stored answer key.',
+    'question_keys_not_unique' => 'Question keys must be unique across all scopes. Rename these before migrating: :keys',
     'question_system_locked_hint' => 'Protected system question — the key and type cannot be changed.',
     'question_type' => 'Type',
     'question_section' => 'Section',
@@ -332,6 +333,11 @@ return [
     'visibility_add_condition' => 'Add Condition',
     'visibility_add_group' => 'Add Nested Group',
     'condition_subject_guest_type' => 'Guest Type',
+    'visibility_scope_participant' => 'Registrant questions',
+    'visibility_scope_group' => 'Group questions',
+    'visibility_scope_guest' => 'Guest questions',
+    'visibility_scope_group_member' => 'Group member questions',
+    'visibility_guest_tag' => 'guest',
 
     // Reports: the admin-defined printable lists (name, description, columns,
     // row rules, guest inclusion) and the pages that view and export them.
@@ -342,6 +348,11 @@ return [
     'report_create_title' => 'New Report',
     'report_edit_title' => 'Edit Report',
     'report_name' => 'Name',
+    'report_type' => 'Type',
+    'report_type_registrant' => 'Registrant',
+    'report_type_registrant_description' => 'Lists registrants, each followed by their included guests. The row rule tests registrants only.',
+    'report_type_individual' => 'Individual',
+    'report_type_individual_description' => 'Lists registrants and included guests as separate entries, each kept or dropped on its own answers. Use it for special needs, Prayer Pals and similar lists.',
     'report_description' => 'Description',
     'report_header' => 'Header',
     'report_header_hint' => 'Optional text shown above the report, on screen and in the PDF export. May include {name} variables, same as other admin texts — but not question tokens ({q:...}), since a report has no single row for them to answer.',
@@ -393,6 +404,7 @@ return [
     'report_column_mapping_add' => 'Add',
     'report_rules' => 'Row Rules',
     'report_rules_intro' => 'Which registrants appear on the report. A report with no rule lists everyone; included guests always follow their registrant.',
+    'report_individual_rules_intro' => 'Which registrants and guests appear on the report, each on their own. Only registrant-question conditions can include or remove registrant rows, and only guest-question conditions guest rows, so a rule with no guest conditions lists no guests (and the reverse); combine the two with OR. A report with no rule lists everyone.',
     'report_rules_edit' => 'Edit Row Rules',
     'report_builtin_email' => 'Email',
     'report_builtin_entry_type' => 'Entry Type',
@@ -404,6 +416,7 @@ return [
     'visibility_noun_report' => 'report',
     'visibility_noun_report_column' => 'column',
     'report_rules_modal_intro' => 'Rules for the rows of the report:',
+    'report_individual_rules_modal_intro' => 'Rules for the rows of the report (registrant questions decide registrant rows, guest questions decide guest rows):',
     'report_cell_rules_modal_intro' => 'Per-row rule for the column:',
 
     // Logistics hub: the interactive consoles and the settings feeding them.

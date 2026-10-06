@@ -64,7 +64,7 @@ class PaymentsControllerTest extends TestCase
         $registrant = $this->soloRegistrant(['name' => 'Wendy', 'lastname' => 'Young', 'nickname' => 'Badge Value']);
         $this->seedGuestScope();
         $guest = Guest::create(['user_id' => $registrant->id, 'type' => GuestType::Adult->value, 'position' => 0]);
-        $this->storeAnswers($guest, QuestionScope::Guest, ['name' => 'Guest Wendy', 'extra' => 'addon']);
+        $this->storeAnswers($guest, QuestionScope::Guest, ['guestname' => 'Guest Wendy', 'extra' => 'addon']);
 
         $response = $this->actingAs($this->makeUser())->get(route('registration.admin.payments'));
 
@@ -204,7 +204,7 @@ class PaymentsControllerTest extends TestCase
         $registrant = $this->soloRegistrant(['name' => 'Wendy', 'lastname' => 'Young']);
         $this->seedGuestScope();
         $guest = Guest::create(['user_id' => $registrant->id, 'type' => GuestType::Adult->value, 'position' => 0]);
-        $this->storeAnswers($guest, QuestionScope::Guest, ['name' => 'Guest Wendy', 'extra' => 'addon']);
+        $this->storeAnswers($guest, QuestionScope::Guest, ['guestname' => 'Guest Wendy', 'extra' => 'addon']);
 
         $response = $this->actingAs($this->makeUser())->get(route('registration.admin.payments.show', $registrant->id));
 
@@ -279,7 +279,7 @@ class PaymentsControllerTest extends TestCase
             'scope' => QuestionScope::Guest->value, 'key' => 'guest-details', 'title' => 'Guest Details', 'position' => 0, 'enabled' => true,
         ]);
         Question::create([
-            'section_id' => $section->id, 'key' => 'name', 'type' => QuestionType::Text->value,
+            'section_id' => $section->id, 'key' => 'guestname', 'type' => QuestionType::Text->value,
             'label' => 'Guest name', 'position' => 0, 'required' => false, 'enabled' => true,
         ]);
         $extra = Question::create([
@@ -289,7 +289,7 @@ class PaymentsControllerTest extends TestCase
         $extra->options()->create(['value' => 'none', 'label' => 'None', 'position' => 0]);
         $extra->options()->create(['value' => 'addon', 'label' => 'Add-on', 'cost' => 15, 'position' => 1]);
 
-        app(GuestQuestions::class)->update(['guest_name_key' => 'name']);
+        app(GuestQuestions::class)->update(['guest_name_key' => 'guestname']);
     }
 
     /** A Participant-scope discount-code question, alongside the fixture questionnaire. */

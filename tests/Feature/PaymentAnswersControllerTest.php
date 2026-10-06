@@ -112,14 +112,14 @@ class PaymentAnswersControllerTest extends TestCase
         $registrant = $this->registrantWithAnswers([]);
         $this->seedGuestScope();
         $guest = Guest::create(['user_id' => $registrant->id, 'type' => GuestType::Adult->value, 'position' => 0]);
-        $this->storeAnswers($guest, QuestionScope::Guest, ['name' => 'Guest', 'extra' => 'none']);
+        $this->storeAnswers($guest, QuestionScope::Guest, ['guestname' => 'Guest', 'extra' => 'none']);
 
         $this->actingAs($this->makeUser())
             ->get(route('registration.admin.payments.guests.answers.edit', [$registrant->id, $guest->id]))
             ->assertOk();
 
         $this->actingAs($this->makeUser())
-            ->put(route('registration.admin.payments.guests.answers.update', [$registrant->id, $guest->id]), ['name' => 'Guest', 'extra' => 'addon'])
+            ->put(route('registration.admin.payments.guests.answers.update', [$registrant->id, $guest->id]), ['guestname' => 'Guest', 'extra' => 'addon'])
             ->assertRedirect(route('registration.admin.payments.show', $registrant->id));
 
         $this->assertSame(15.0, $guest->fresh()->cost());
@@ -131,11 +131,11 @@ class PaymentAnswersControllerTest extends TestCase
         $registrant = $this->registrantWithAnswers([]);
         $this->seedGuestScope();
         $guest = Guest::create(['user_id' => $registrant->id, 'type' => GuestType::Adult->value, 'position' => 0]);
-        $this->storeAnswers($guest, QuestionScope::Guest, ['name' => 'Guest', 'extra' => 'none']);
+        $this->storeAnswers($guest, QuestionScope::Guest, ['guestname' => 'Guest', 'extra' => 'none']);
 
         $response = $this->actingAs($this->makeUser())->postJson(
             route('registration.admin.payments.guests.answers.preview', [$registrant->id, $guest->id]),
-            ['name' => 'Guest', 'extra' => 'addon'],
+            ['guestname' => 'Guest', 'extra' => 'addon'],
         );
 
         $response->assertOk();
@@ -186,7 +186,7 @@ class PaymentAnswersControllerTest extends TestCase
             'scope' => QuestionScope::Guest->value, 'key' => 'guest-details', 'title' => 'Guest Details', 'position' => 0, 'enabled' => true,
         ]);
         Question::create([
-            'section_id' => $section->id, 'key' => 'name', 'type' => QuestionType::Text->value,
+            'section_id' => $section->id, 'key' => 'guestname', 'type' => QuestionType::Text->value,
             'label' => 'Guest name', 'position' => 0, 'required' => false, 'enabled' => true,
         ]);
         $extra = Question::create([

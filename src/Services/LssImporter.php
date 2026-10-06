@@ -257,13 +257,22 @@ class LssImporter
             return;
         }
 
+        // LimeSurvey codes are unique within a survey, so only a hand-edited
+        // export, or a key already used outside the survey, collides here.
+        $key = $this->slug($code, "q{$qid}");
+        if (Question::where('key', $key)->where('section_id', '!=', $section->id)->exists()) {
+            $this->skipped[] = "Question '{$code}' skipped: key '{$key}' is already used by another section's question.";
+
+            return;
+        }
+
         $byLanguage = $questionText[$qid] ?? [];
         $l10n = $this->baseText($byLanguage);
         $label = $this->text($l10n['question'] ?? $row['question'] ?? $code) ?: $code;
         $help = $this->text($l10n['help'] ?? $row['help'] ?? '');
 
         $question = Question::updateOrCreate(
-            ['section_id' => $section->id, 'key' => $this->slug($code, "q{$qid}")],
+            ['section_id' => $section->id, 'key' => $key],
             [
                 'type' => $type->value,
                 'label' => $label,

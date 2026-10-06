@@ -5,6 +5,7 @@ namespace ConferenceTools\Registration\Tests\Feature;
 use ConferenceTools\Registration\Database\Seeders\DefaultReportsSeeder;
 use ConferenceTools\Registration\Enums\ConditionOperator;
 use ConferenceTools\Registration\Enums\ReportColumnDisplay;
+use ConferenceTools\Registration\Enums\ReportType;
 use ConferenceTools\Registration\Models\Report;
 use ConferenceTools\Registration\Models\ReportColumn;
 use ConferenceTools\Registration\Models\Setting;
@@ -154,6 +155,32 @@ class DefaultReportsSeederTest extends TestCase
             'special needs loses its answer column and rule' => ['Special Needs', ['name', 'lastname'], 0],
             'first-time loses its rule' => ['First-Time Attendees', ['name', 'lastname'], 0],
             'directory loses its rules' => ['Directory', ['badge_name', 'organization', 'email'], 0],
+        ];
+    }
+
+    #[DataProvider('reportTypes')]
+    #[TestDox('each report is seeded with its type, replacing the type of an existing row')]
+    public function test_each_report_is_seeded_with_its_type_replacing_the_type_of_an_existing_row(string $name, ReportType $type): void
+    {
+        $other = $type === ReportType::Individual ? ReportType::Registrant : ReportType::Individual;
+        Report::factory()->create(['name' => $name, 'type' => $other]);
+
+        $this->seedRetiredReportSettings();
+        $this->runSeeder();
+
+        $this->assertSame($type, $this->reportNamed($name)->type);
+    }
+
+    /** Each seeded report's name and type, for the data provider. */
+    public static function reportTypes(): array
+    {
+        return [
+            'attendee list' => ['Attendee List', ReportType::Registrant],
+            'directory' => ['Directory', ReportType::Registrant],
+            'arrivals' => ['Arrivals', ReportType::Registrant],
+            'photo permission form' => ['Photo Permission Form', ReportType::Registrant],
+            'special needs' => ['Special Needs', ReportType::Individual],
+            'first-time attendees' => ['First-Time Attendees', ReportType::Registrant],
         ];
     }
 

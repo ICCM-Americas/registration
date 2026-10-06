@@ -83,6 +83,22 @@ class LssImporterTest extends TestCase
         );
     }
 
+    #[TestDox('it skips a question whose key another section already uses and reports it')]
+    public function test_it_skips_a_question_whose_key_another_section_already_uses_and_reports_it(): void
+    {
+        $guestSection = Section::create(['scope' => QuestionScope::Guest->value, 'key' => 'guests', 'title' => 'Guests', 'position' => 0, 'enabled' => true]);
+        $existing = Question::create([
+            'section_id' => $guestSection->id, 'key' => 'firstname', 'type' => QuestionType::Text->value,
+            'label' => "Guest's first name", 'position' => 0, 'required' => false, 'enabled' => true,
+        ]);
+
+        $report = app(LssImporter::class)->import($this->modernLss());
+
+        $this->assertSame($existing->id, Question::where('key', 'firstname')->sole()->id);
+        $this->assertSame("Guest's first name", $existing->fresh()->label);
+        $this->assertTrue(collect($report['skipped'])->contains(fn ($n) => str_contains($n, "key 'firstname' is already used")));
+    }
+
     #[TestDox('it rewrites limesurvey answer references to q tokens')]
     public function test_it_rewrites_limesurvey_answer_references_to_q_tokens(): void
     {

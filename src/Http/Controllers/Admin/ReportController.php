@@ -6,6 +6,7 @@ use ConferenceTools\Branding\Contracts\BrandingProvider;
 use ConferenceTools\Registration\Enums\QuestionScope;
 use ConferenceTools\Registration\Enums\ReportColumnDisplay;
 use ConferenceTools\Registration\Enums\ReportField;
+use ConferenceTools\Registration\Enums\ReportType;
 use ConferenceTools\Registration\Http\Controllers\Controller;
 use ConferenceTools\Registration\Models\Question;
 use ConferenceTools\Registration\Models\Report;
@@ -22,7 +23,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * The admin-defined reports: the Reports page lists them, and each one is
- * created and shaped here — name/description/header/footer/guest inclusion, the
+ * created and shaped here — type (fixed at creation, see ReportType),
+ * name/description/header/footer/guest inclusion, the
  * drag-reorderable columns (question answers, built-in fields, or blank
  * custom columns, each re-sourceable after creation; value, label, or
  * per-column mapped display; an optional heading override), and
@@ -48,13 +50,16 @@ class ReportController extends Controller
     /** The blank definition form. */
     public function create()
     {
-        return view('registration::admin.reports.form', ['report' => new Report]);
+        return view('registration::admin.reports.form', ['report' => new Report, 'types' => ReportType::cases()]);
     }
 
     /** Create a report and continue to its full editor (columns and rules). */
     public function store(Request $request)
     {
-        $report = Report::create($this->validated($request));
+        $report = Report::create([
+            ...$this->validated($request),
+            ...$request->validate(['type' => ['required', Rule::in(ReportType::values())]]),
+        ]);
 
         return redirect()
             ->route($this->routeName('admin.reports.edit'), $report)
@@ -217,7 +222,7 @@ class ReportController extends Controller
         return $this->downloadCsv($exporter, Str::slug($report->name), $runner->headers($report), $runner->rows($report));
     }
 
-    /** The validated definition fields (shared by store and update). */
+    /** The validated definition fields shared by store and update (type is store-only). */
     private function validated(Request $request): array
     {
         return [

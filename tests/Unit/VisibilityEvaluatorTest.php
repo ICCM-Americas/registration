@@ -5,6 +5,7 @@ namespace ConferenceTools\Registration\Tests\Unit;
 use ConferenceTools\Registration\Enums\BooleanOperator;
 use ConferenceTools\Registration\Enums\ConditionOperator;
 use ConferenceTools\Registration\Enums\ConditionSubject;
+use ConferenceTools\Registration\Enums\QuestionScope;
 use ConferenceTools\Registration\Models\Condition;
 use ConferenceTools\Registration\Models\ConditionGroup;
 use ConferenceTools\Registration\Models\Question;
@@ -279,6 +280,70 @@ class VisibilityEvaluatorTest extends TestCase
 
         $this->assertTrue($this->evaluator()->passes([$pass], ['q' => 'red']));
         $this->assertFalse($this->evaluator()->passes([$pass, $fail], ['q' => 'red', 'other' => 'blue']));
+    }
+
+    /** A condition on question $key of the given scope ("r" is the registrant question, "g" the guest one). */
+    private function scopedCondition(string $key, ConditionOperator $op, string $value): Condition
+    {
+        $section = new Section(['scope' => $key === 'g' ? QuestionScope::Guest : QuestionScope::Participant]);
+        $question = new Question(['key' => $key]);
+        $question->setRelation('section', $section);
+        $condition = new Condition(['operator' => $op, 'value' => $value]);
+        $condition->setRelation('question', $question);
+
+        return $condition;
+    }
+
+    /** The named rule tree for the scope-matched cases (answers: r = yes, g = no). */
+    private function scopedTree(string $name): ConditionGroup
+    {
+        $eq = ConditionOperator::Equals;
+
+        return match ($name) {
+            'r = yes' => $this->group(BooleanOperator::And, [$this->scopedCondition('r', $eq, 'yes')]),
+            'r = no' => $this->group(BooleanOperator::And, [$this->scopedCondition('r', $eq, 'no')]),
+            'g = yes' => $this->group(BooleanOperator::And, [$this->scopedCondition('g', $eq, 'yes')]),
+            'g != yes' => $this->group(BooleanOperator::And, [$this->scopedCondition('g', ConditionOperator::NotEquals, 'yes')]),
+            'r = yes OR g = yes' => $this->group(BooleanOperator::Or, [$this->scopedCondition('r', $eq, 'yes'), $this->scopedCondition('g', $eq, 'yes')]),
+            'r = no AND g = no' => $this->group(BooleanOperator::And, [$this->scopedCondition('r', $eq, 'no'), $this->scopedCondition('g', $eq, 'no')]),
+            '(g = no) OR r = no' => $this->group(BooleanOperator::Or, [$this->scopedCondition('r', $eq, 'no')], [
+                $this->group(BooleanOperator::And, [$this->scopedCondition('g', $eq, 'no')]),
+            ]),
+            'subject only' => $this->group(BooleanOperator::And, [$this->subjectCondition(ConditionOperator::IsAnswered, null, ConditionSubject::GuestType)]),
+        };
+    }
+
+    #[Test]
+    #[DataProvider('scopedCases')]
+    #[TestDox('passesForScope lets each condition decide only rows of its own scope')]
+    public function passes_for_scope_lets_each_condition_decide_only_rows_of_its_own_scope(string $tree, QuestionScope $rowScope, bool $expected): void
+    {
+        $this->assertSame($expected, $this->evaluator()->passesForScope([$this->scopedTree($tree)], ['r' => 'yes', 'g' => 'no'], $rowScope));
+    }
+
+    /**
+     * @return array<string, array{string, QuestionScope, bool}>
+     */
+    public static function scopedCases(): array
+    {
+        $r = QuestionScope::Participant;
+        $g = QuestionScope::Guest;
+
+        return [
+            'registrant condition decides a registrant row' => ['r = no', $r, false],
+            'registrant condition passes a registrant row' => ['r = yes', $r, true],
+            'a passing registrant condition never keeps a guest row' => ['r = yes', $g, false],
+            'guest condition decides a guest row' => ['g = yes', $g, false],
+            'negated guest condition keeps a guest row' => ['g != yes', $g, true],
+            'negated guest condition never keeps a registrant row' => ['g != yes', $r, false],
+            'OR picks a registrant row by its own branch' => ['r = yes OR g = yes', $r, true],
+            'OR leaves a guest row to its own branch' => ['r = yes OR g = yes', $g, false],
+            'AND across scopes checks only the row scope (registrant)' => ['r = no AND g = no', $r, false],
+            'AND across scopes checks only the row scope (guest)' => ['r = no AND g = no', $g, true],
+            'a skipped subgroup drops out instead of passing an OR' => ['(g = no) OR r = no', $r, false],
+            'a subgroup of the row scope still counts' => ['(g = no) OR r = no', $g, true],
+            'a built-in subject applies to every row' => ['subject only', $r, false],
+        ];
     }
 
     /** An option offered only when controlling-question q equals $when (unconditional when null). */

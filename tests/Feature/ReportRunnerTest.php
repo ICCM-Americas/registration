@@ -8,6 +8,7 @@ use ConferenceTools\Registration\Enums\GuestType;
 use ConferenceTools\Registration\Enums\QuestionScope;
 use ConferenceTools\Registration\Enums\ReportColumnDisplay;
 use ConferenceTools\Registration\Enums\ReportField;
+use ConferenceTools\Registration\Enums\ReportType;
 use ConferenceTools\Registration\Models\Question;
 use ConferenceTools\Registration\Models\Report;
 use ConferenceTools\Registration\Models\ReportColumn;
@@ -21,8 +22,8 @@ use PHPUnit\Framework\Attributes\TestDox;
 
 /**
  * Row building for admin-defined reports: headings, row rules, guest
- * inclusion, scope-aware cells, value/label display, per-row cell rules and
- * the built-in fields.
+ * inclusion, scope-aware cells, value/label display, per-row cell rules, the
+ * built-in fields, and Individual reports' scope-matched rules and cells.
  */
 #[TestDox('Report Runner')]
 class ReportRunnerTest extends TestCase
@@ -110,6 +111,118 @@ class ReportRunnerTest extends TestCase
             'operator' => $operator->value,
             'value' => $value,
         ]);
+    }
+
+    /**
+     * Attach a one-group rule to a report or column.
+     *
+     * @param  list<array{string, ConditionOperator, ?string}>  $conditions  question key, operator, value
+     */
+    private function ruleTree(Model $node, BooleanOperator $operator, array $conditions): void
+    {
+        $group = $node->conditionGroups()->create(['operator' => $operator->value]);
+        foreach ($conditions as [$key, $conditionOperator, $value]) {
+            $group->conditions()->create([
+                'question_id' => Question::firstWhere('key', $key)->id,
+                'operator' => $conditionOperator->value,
+                'value' => $value,
+            ]);
+        }
+    }
+
+    /**
+     * Two families for the Individual report cases: first-timer Ada with an
+     * adult guest who refused photos and a minor who allowed them, and
+     * returning Bob with an adult guest who refused photos.
+     */
+    private function seedIndividualFamilies(): void
+    {
+        $ada = $this->makeRegistrant('Ada', 'Lovelace', ['firsttime' => 'yes']);
+        $this->makeGuest($ada, GuestType::Adult, ['guestname' => 'Ada Guest', 'guestphoto' => 'no']);
+        $this->makeGuest($ada, GuestType::Minor, ['guestname' => 'Ada Kid', 'guestphoto' => 'yes']);
+        $bob = $this->makeRegistrant('Bob', 'Turing', ['firsttime' => 'no']);
+        $this->makeGuest($bob, GuestType::Adult, ['guestname' => 'Bob Guest', 'guestphoto' => 'no']);
+    }
+
+    #[DataProvider('individualRules')]
+    #[TestDox('an individual report keeps each registrant and guest by the conditions of their own scope')]
+    public function test_an_individual_report_keeps_each_registrant_and_guest_by_the_conditions_of_their_own_scope(BooleanOperator $operator, array $conditions, array $expected): void
+    {
+        $this->seedIndividualFamilies();
+        $report = $this->report(['type' => ReportType::Individual, 'include_adult_guests' => true, 'include_minor_guests' => true]);
+        $this->builtinColumn($report, ReportField::BadgeName);
+        if ($conditions !== []) {
+            $this->ruleTree($report, $operator, $conditions);
+        }
+
+        $this->assertSame($expected, $this->runner()->rows($report)->flatten()->all());
+    }
+
+    /** Rule operator, conditions and the expected rows, for the data provider. */
+    public static function individualRules(): array
+    {
+        $and = BooleanOperator::And;
+        $or = BooleanOperator::Or;
+        $firstTimer = ['firsttime', ConditionOperator::Equals, 'yes'];
+        $noPhotos = ['guestphoto', ConditionOperator::Equals, 'no'];
+
+        return [
+            'no rule' => [$and, [], ['Ada Lovelace', 'Ada Guest', 'Ada Kid', 'Bob Turing', 'Bob Guest']],
+            'registrant condition alone lists no guests' => [$and, [$firstTimer], ['Ada Lovelace']],
+            'guest condition alone lists no registrants' => [$and, [$noPhotos], ['Ada Guest', 'Bob Guest']],
+            'negated guest condition still lists no registrants' => [$and, [['guestphoto', ConditionOperator::NotEquals, 'no']], ['Ada Kid']],
+            'OR across scopes, a guest without their registrant' => [$or, [$firstTimer, $noPhotos], ['Ada Lovelace', 'Ada Guest', 'Bob Guest']],
+            'AND across scopes' => [$and, [$firstTimer, $noPhotos], ['Ada Lovelace', 'Ada Guest', 'Bob Guest']],
+        ];
+    }
+
+    #[TestDox('an individual report lists only the guest types it includes')]
+    public function test_an_individual_report_lists_only_the_guest_types_it_includes(): void
+    {
+        $this->seedIndividualFamilies();
+        $report = $this->report(['type' => ReportType::Individual, 'include_minor_guests' => true]);
+        $this->builtinColumn($report, ReportField::BadgeName);
+        $this->rule($report, 'guestphoto', ConditionOperator::IsAnswered, null);
+
+        $this->assertSame(['Ada Kid'], $this->runner()->rows($report)->flatten()->all());
+    }
+
+    #[DataProvider('cellsByType')]
+    #[TestDox('participant cells and cell rules on guest rows follow the report type')]
+    public function test_participant_cells_and_cell_rules_on_guest_rows_follow_the_report_type(ReportType $type, array $expected): void
+    {
+        $host = $this->makeRegistrant('Host', 'Registrant', ['photopermission' => 'yes']);
+        $this->makeGuest($host, GuestType::Adult, ['guestname' => 'Adult Guest', 'guestphoto' => 'no']);
+        $this->makeGuest($host, GuestType::Minor, ['guestname' => 'Minor Guest', 'guestphoto' => 'yes']);
+
+        $report = $this->report(['type' => $type, 'include_adult_guests' => true, 'include_minor_guests' => true]);
+        $this->questionColumn($report, 'photopermission');
+        $this->questionColumn($report, 'photopermission')
+            ->update(['guest_question_id' => Question::firstWhere('key', 'guestphoto')->id]);
+        $this->rule($this->builtinColumn($report, ReportField::BadgeName), 'guestphoto', ConditionOperator::Equals, 'no');
+
+        $this->assertSame($expected, $this->runner()->rows($report)->all());
+    }
+
+    /** The report type and its expected rows, for the data provider. */
+    public static function cellsByType(): array
+    {
+        return [
+            // The family shares the registrant's answer; the guest rule blanks
+            // the registrant's own name (no guest answer there).
+            'registrant' => [ReportType::Registrant, [
+                ['yes', 'yes', null],
+                ['yes', 'no', 'Adult Guest'],
+                ['yes', 'yes', null],
+            ]],
+            // A guest is not their registrant, and a guest-only rule can
+            // show a cell on guest rows alone.
+            'individual' => [ReportType::Individual, [
+                ['yes', 'yes', null],
+                [null, 'no', 'Adult Guest'],
+                [null, 'yes', null],
+            ]],
+        ];
     }
 
     #[TestDox('headings prefer the override then the question label then the built-in label')]
@@ -449,34 +562,6 @@ class ReportRunnerTest extends TestCase
             [['Shown Family'], ['Shown Guest'], [null], [null]],
             $this->runner()->rows($report)->all(),
         );
-    }
-
-    #[TestDox('a guests own answer wins over the registrants on a key collision')]
-    public function test_a_guests_own_answer_wins_over_the_registrants_on_a_key_collision(): void
-    {
-        // Question keys are only unique per scope: give the Guest scope its
-        // own "photopermission" and let the guest answer differently from
-        // their registrant.
-        $guestSection = Question::firstWhere('key', 'guestname')->section;
-        $guestPhoto = Question::create([
-            'section_id' => $guestSection->id, 'key' => 'photopermission', 'type' => 'radio',
-            'label' => 'Guest photo permission', 'position' => 9, 'required' => false, 'enabled' => true,
-        ]);
-        $guestPhoto->options()->createMany([
-            ['value' => 'yes', 'label' => 'Yes', 'position' => 0],
-            ['value' => 'no', 'label' => 'No', 'position' => 1],
-        ]);
-
-        $host = $this->makeRegistrant('Host', 'Registrant', ['photopermission' => 'yes']);
-        $this->makeGuest($host, GuestType::Adult, ['guestname' => 'The Guest', 'photopermission' => 'no']);
-
-        $report = $this->report(['include_adult_guests' => true]);
-        $name = $this->builtinColumn($report, ReportField::BadgeName);
-        $this->rule($name, 'photopermission', ConditionOperator::Equals, 'no');
-
-        // The registrant answered "yes" (rule fails); the guest's own "no"
-        // overrides it on their row (rule passes).
-        $this->assertSame([[null], ['The Guest']], $this->runner()->rows($report)->all());
     }
 
     #[TestDox('built-in cells cover email entry type badge name and organization')]

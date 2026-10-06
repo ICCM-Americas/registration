@@ -5,9 +5,10 @@
     action is a plain form submit handled on the server (no client logic).
 
     Expects: $node (the conditionable model), $visPrefix (route-name prefix),
-    $group, $controllingQuestions, $controllingSubjects (built-in subjects a
-    condition may test instead of a question's answer — usually empty),
-    $booleanOperators, $conditionOperators.
+    $group, $questionGroups (the controlling questions per scope — more than
+    one adds a registrant/guest toggle), $pickedScope, $controllingSubjects
+    (built-in subjects a condition may test instead of a question's answer —
+    usually empty), $booleanOperators, $conditionOperators.
 --}}
 <div class="card mb-2 border-left-primary visibility-group-card">
     <div class="card-body">
@@ -40,6 +41,9 @@
                 <li class="list-group-item d-flex justify-content-between align-items-center px-2 py-1">
                     <span>
                         <code>{{ $condition->question?->key ?? $condition->subject?->label() }}</code>
+                        @if (count($questionGroups) > 1 && $condition->question?->section?->scope === \ConferenceTools\Registration\Enums\QuestionScope::Guest)
+                            <span class="badge badge-light border">{{ __('registration::admin.visibility_guest_tag') }}</span>
+                        @endif
                         <span class="badge badge-secondary">{{ $condition->operator->value }}</span>
                         @if ($condition->operator->needsValue())<strong>{{ $condition->value }}</strong>@endif
                     </span>
@@ -57,12 +61,32 @@
         <form method="POST" action="{{ route($routeName($visPrefix.'.conditions.store'), $node) }}" class="form-inline mb-2">
             @csrf
             <input type="hidden" name="condition_group_id" value="{{ $group->id }}">
-            <select name="question_id" class="form-control form-control-sm mr-1">
-                <option value="">{{ __('registration::admin.visibility_pick_question') }}</option>
-                @foreach ($controllingQuestions as $candidate)
-                    <option value="{{ $candidate->id }}">{{ $candidate->key }}</option>
-                @endforeach
-            </select>
+            {{-- One select per scope; the toggle (editor-modal's script)
+                 enables only the picked one, and disabled selects don't post. --}}
+            @if (count($questionGroups) > 1)
+                <div class="iccm-row iccm-row-tight mr-1">
+                    @foreach ($questionGroups as $questionGroup)
+                        <label class="iccm-checkbox-row">
+                            <input type="radio" name="question_scope" value="{{ $questionGroup['scope'] }}" class="js-scope-pick" @checked($questionGroup['scope'] === $pickedScope)>
+                            <span>{{ $questionGroup['label'] }}</span>
+                        </label>
+                    @endforeach
+                </div>
+            @endif
+            @forelse ($questionGroups as $questionGroup)
+                <select name="question_id" data-scope="{{ $questionGroup['scope'] }}"
+                        class="form-control form-control-sm mr-1 js-scope-select{{ $questionGroup['scope'] === $pickedScope ? '' : ' d-none' }}"
+                        @disabled($questionGroup['scope'] !== $pickedScope)>
+                    <option value="">{{ __('registration::admin.visibility_pick_question') }}</option>
+                    @foreach ($questionGroup['questions'] as $candidate)
+                        <option value="{{ $candidate->id }}">{{ $candidate->key }}</option>
+                    @endforeach
+                </select>
+            @empty
+                <select name="question_id" class="form-control form-control-sm mr-1">
+                    <option value="">{{ __('registration::admin.visibility_pick_question') }}</option>
+                </select>
+            @endforelse
             @if (! empty($controllingSubjects))
                 <select name="subject" class="form-control form-control-sm mr-1">
                     <option value="">{{ __('registration::admin.visibility_pick_subject') }}</option>

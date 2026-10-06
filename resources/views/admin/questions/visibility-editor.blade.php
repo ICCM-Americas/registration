@@ -9,7 +9,7 @@
     "admin.questions", "admin.sections" or "admin.options"), $canHide (whether
     the node supports the "always hidden" flag), $noun (what the node is
     called in the fixed texts), $tags, $intro, $subjectLabel, $subjectKey,
-    $rootGroups, $controllingQuestions, $controllingSubjects (built-in
+    $rootGroups, $questionGroups, $pickedScope, $controllingSubjects (built-in
     subjects, e.g. a guest's own type — usually empty), $booleanOperators,
     $conditionOperators.
 --}}

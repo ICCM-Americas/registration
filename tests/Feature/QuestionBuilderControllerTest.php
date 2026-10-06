@@ -213,19 +213,31 @@ class QuestionBuilderControllerTest extends TestCase
             ->assertSee('partner | Partner |  | 3 | guests', false);
     }
 
-    #[TestDox('store question derives a unique key per scope')]
-    public function test_store_question_derives_a_unique_key_per_scope(): void
+    #[DataProvider('keyScopes')]
+    #[TestDox('store question derives a key unique across every scope')]
+    public function test_store_question_derives_a_key_unique_across_every_scope(QuestionScope $scope): void
     {
-        $section = Section::where('key', 'your-details')->first();
+        $section = Section::create(['scope' => $scope->value, 'key' => 'keyed-'.$scope->value, 'title' => 'Keyed', 'position' => 99, 'enabled' => true]);
 
-        // "name" already exists in the participant scope (seeded) → suffixed.
+        // "name" already exists in the participant scope (seeded) → suffixed,
+        // whatever the new question's own scope.
         $this->actingAs($this->makeUser())->post(route('registration.admin.questions.store'), [
             'section_id' => $section->id,
             'label' => 'Name',
             'type' => QuestionType::Text->value,
         ])->assertRedirect();
 
-        $this->assertNotNull(Question::where('key', 'name_2')->first());
+        $this->assertSame($section->id, Question::where('key', 'name_2')->sole()->section_id);
+    }
+
+    /** The scopes a new question may land in, for the data provider. */
+    public static function keyScopes(): array
+    {
+        return [
+            'participant' => [QuestionScope::Participant],
+            'group' => [QuestionScope::Group],
+            'guest' => [QuestionScope::Guest],
+        ];
     }
 
     #[TestDox('update question changes fields and options')]
