@@ -8,6 +8,7 @@ use ConferenceTools\Registration\Models\Guest;
 use ConferenceTools\Registration\Models\PrayerPalsAssignment;
 use ConferenceTools\Registration\Models\PrayerPalsGroup;
 use ConferenceTools\Registration\Models\Setting;
+use ConferenceTools\Registration\Services\CsvExport;
 use ConferenceTools\Registration\Services\GuestQuestions;
 use ConferenceTools\Registration\Services\Registrants;
 use ConferenceTools\Registration\Services\ReportQuestions;
@@ -15,7 +16,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * The "Prayer Pals" console: every registrant, plus any adult non-attending
@@ -31,6 +34,48 @@ class PrayerPalsController extends Controller
     /** The Prayer Pals grouping console: unassigned opt-ins and the current groups. */
     public function index(Registrants $registrants, ReportQuestions $questions, GuestQuestions $guestQuestions)
     {
+        $data = $this->data($registrants, $questions, $guestQuestions);
+
+        return view('registration::admin.logistics.prayer-pals', $data + [
+            'pdfPayload' => $this->pdfPayload($data),
+            'pdfPaper' => $this->pdfPaperSize(),
+        ]);
+    }
+
+    /** The groups as a CSV download: every member by sex and group, then the unassigned. */
+    public function csv(Registrants $registrants, ReportQuestions $questions, GuestQuestions $guestQuestions, CsvExport $exporter): StreamedResponse
+    {
+        $data = $this->data($registrants, $questions, $guestQuestions);
+        $rows = collect();
+
+        foreach ($data['genders'] as $gender) {
+            foreach ($data['groups']->get($gender->value, collect()) as $group) {
+                foreach ($this->memberKeys($group) as $key) {
+                    $rows->push([$gender->label(), $group->label(), ...$this->personCells($data, $key)]);
+                }
+            }
+        }
+
+        foreach ($this->unassignedBySex($data) as [$gender, $people]) {
+            foreach ($people as $person) {
+                $rows->push([$gender?->label() ?? '', '', ...$this->personCells($data, $this->key($person))]);
+            }
+        }
+
+        return $this->downloadCsv($exporter, 'prayer-pals',
+            [
+                __('registration::admin.export_sex'),
+                __('registration::admin.export_prayer_pals_group'),
+                __('registration::admin.export_name'),
+                __('registration::admin.report_builtin_organization'),
+            ],
+            $rows,
+        );
+    }
+
+    /** The pool split into each sex's groups and unassigned people, plus anyone with no recorded sex. */
+    private function data(Registrants $registrants, ReportQuestions $questions, GuestQuestions $guestQuestions): array
+    {
         $pool = $this->pool($registrants, $guestQuestions);
         $genderById = $pool->mapWithKeys(fn (Model $o) => [$this->key($o) => $this->genderOf($o, $questions, $guestQuestions)]);
 
@@ -43,16 +88,95 @@ class PrayerPalsController extends Controller
                 ->values(),
         ]);
 
-        return view('registration::admin.logistics.prayer-pals', [
+        return [
             'genders' => Gender::cases(),
             'groups' => $groups,
             'unassigned' => $unassigned,
             'unknownGender' => $pool->reject(fn (Model $o) => $genderById[$this->key($o)] !== null)->values(),
+            'assignedKeys' => $assignedKeys,
             'questions' => $questions,
             'guestQuestions' => $guestQuestions,
             'byKey' => $pool->keyBy(fn (Model $o) => $this->key($o)),
             'labelStyle' => PrayerPalsGroup::labelStyle(),
-        ]);
+        ];
+    }
+
+    /**
+     * The unassigned as [sex, people] pairs: each sex in turn, then anyone
+     * with no recorded sex (null) who isn't somehow in a group already.
+     *
+     * @return list<array{0: ?Gender, 1: Collection}>
+     */
+    private function unassignedBySex(array $data): array
+    {
+        $pairs = array_map(fn (Gender $gender): array => [$gender, $data['unassigned'][$gender->value]], $data['genders']);
+        $pairs[] = [null, $data['unknownGender']->reject(fn (Model $o): bool => $data['assignedKeys']->contains($this->key($o)))->values()];
+
+        return $pairs;
+    }
+
+    /** @return Collection<int, string> a group's member keys, in assignment order */
+    private function memberKeys(PrayerPalsGroup $group): Collection
+    {
+        return $group->assignments->map(fn (PrayerPalsAssignment $a): string => $a->assignable_type.':'.$a->assignable_id);
+    }
+
+    /** A person's name and organization cells; "#id" alone for a member who is no longer in the pool. */
+    private function personCells(array $data, string $key): array
+    {
+        $person = $data['byKey']->get($key);
+
+        return $person
+            ? [$data['guestQuestions']->occupantFullName($person, $data['questions']), $data['questions']->organization($person) ?? '']
+            : ['#'.Str::afterLast($key, ':'), ''];
+    }
+
+    /**
+     * Everything the view's client-side PDF generator needs: a section per
+     * sex with a bar per group over its members, then the unassigned by sex
+     * — mirroring the on-screen cards.
+     */
+    private function pdfPayload(array $data): array
+    {
+        $name = function (string $key) use ($data): string {
+            [$name, $organization] = $this->personCells($data, $key);
+
+            return $organization !== '' ? $name.' ('.$organization.')' : $name;
+        };
+        $sexLabels = [
+            Gender::Male->value => __('registration::admin.prayer_pals_male'),
+            Gender::Female->value => __('registration::admin.prayer_pals_female'),
+        ];
+
+        $sections = [];
+        foreach ($data['genders'] as $gender) {
+            $sections[] = [
+                'heading' => $sexLabels[$gender->value],
+                'bars' => $data['groups']->get($gender->value, collect())->map(fn (PrayerPalsGroup $group): array => [
+                    'label' => __('registration::admin.prayer_pals_group_label', ['label' => $group->label()])
+                        .' — '.trans_choice('registration::admin.prayer_pals_members_count', $group->assignments->count(), ['count' => $group->assignments->count()]),
+                    'items' => [['headline' => null, 'text' => $this->memberKeys($group)->map($name)->implode(', ')]],
+                ])->values()->all(),
+            ];
+        }
+
+        $unassigned = collect($this->unassignedBySex($data))
+            ->reject(fn (array $pair): bool => $pair[1]->isEmpty())
+            ->map(fn (array $pair): array => [
+                'label' => $pair[0] ? $sexLabels[$pair[0]->value] : __('registration::admin.prayer_pals_unknown_sex'),
+                'items' => [['headline' => null, 'text' => $pair[1]->map(fn (Model $o) => $name($this->key($o)))->implode(', ')]],
+            ])->values()->all();
+        if ($unassigned !== []) {
+            $sections[] = ['heading' => __('registration::admin.prayer_pals_unassigned'), 'bars' => $unassigned];
+        }
+
+        return [
+            'filename' => 'prayer-pals',
+            'title' => __('registration::admin.prayer_pals_title'),
+            'sections' => $sections,
+            'countLabel' => $this->countLabel(),
+            'count' => $data['byKey']->count(),
+        ];
     }
 
     /** Persist the numbered-vs-lettered display choice. */

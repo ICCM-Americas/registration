@@ -5,7 +5,7 @@
 @endsection
 
 @section('content')
-    @include('registration::partials.report-toolbar')
+    @include('registration::partials.report-toolbar', ['reportName' => 'prayer_pals', 'pdfPaper' => $pdfPaper])
 
     <h1>{{ __('registration::admin.prayer_pals_title') }}</h1>
     <p class="text-muted no-print">{{ __('registration::admin.prayer_pals_intro') }}</p>
@@ -110,7 +110,7 @@
                                 @forelse ($group->assignments as $assignment)
                                     @php
                                         $memberType = $assignment->assignable_type === \ConferenceTools\Registration\Models\Guest::class ? 'guest' : 'user';
-                                        $member = $byKey->get($memberType.':'.$assignment->assignable_id);
+                                        $member = $byKey->get($assignment->assignable_type.':'.$assignment->assignable_id);
                                     @endphp
                                     <span class="prayer-pals-chip" draggable="true" data-occupant="{{ $memberType }}:{{ $assignment->assignable_id }}">
                                         {{ $member ? $guestQuestions->occupantFullName($member, $questions) : '#'.$assignment->assignable_id }}
@@ -154,6 +154,7 @@
         @endforeach
     </div>
 
+    @include('registration::partials.grouped-pdf-script')
 
     <script nonce="{{ $cspNonce ?? '' }}">
     (function () {

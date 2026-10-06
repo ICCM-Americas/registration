@@ -39,6 +39,7 @@ class PrayerPalsControllerTest extends TestCase
             'index' => ['get', 'registration.admin.logistics.prayer_pals', []],
             'settings' => ['put', 'registration.admin.logistics.prayer_pals.settings', []],
             'groups.store' => ['post', 'registration.admin.logistics.prayer_pals.groups.store', []],
+            'csv' => ['get', 'registration.admin.logistics.prayer_pals.csv', []],
         ];
     }
 
@@ -51,6 +52,121 @@ class PrayerPalsControllerTest extends TestCase
         $this->actingAs($this->makeUser())
             ->$method(route($route, $params))
             ->assertForbidden();
+    }
+
+    /** A men's and a women's group with one member each, an unassigned man, and someone with no recorded sex. */
+    private function seedExportScenario(): void
+    {
+        $bletchley = $this->reportGroup();
+        $this->storeAnswers($bletchley, QuestionScope::Group, ['organization' => 'Bletchley Park']);
+        $alan = $this->makeRegistrant('Alan', 'Turing', ['gender' => 'm'], $bletchley);
+        $grace = $this->makeRegistrant('Grace', 'Hopper', ['gender' => 'f'], $bletchley);
+        $this->makeRegistrant('Bob', 'Smith', ['gender' => 'm'], $bletchley);
+        $this->makeRegistrant('Ambiguous', 'Person', ['gender' => 'unknown'], $bletchley);
+
+        foreach ([[Gender::Male, $alan], [Gender::Female, $grace]] as [$sex, $member]) {
+            $group = PrayerPalsGroup::factory()->create(['sex' => $sex, 'position' => 1]);
+            PrayerPalsAssignment::create(['prayer_pals_group_id' => $group->id, 'assignable_type' => $member->getMorphClass(), 'assignable_id' => $member->getKey()]);
+        }
+    }
+
+    #[TestDox('the csv lists members by sex and group, then the unassigned, with a self counting footer')]
+    public function test_the_csv_lists_members_by_sex_and_group_then_the_unassigned_with_a_self_counting_footer(): void
+    {
+        $this->seedExportScenario();
+
+        $response = $this->actingAs($this->makeUser())
+            ->get(route('registration.admin.logistics.prayer_pals.csv'))
+            ->assertOk()
+            ->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
+
+        $this->assertMatchesRegularExpression('/prayer-pals-\d{8}-\d{6}\.csv/', $response->headers->get('Content-Disposition'));
+        $this->assertSame([
+            ['Sex', 'Prayer Pals Group', 'Name', 'Organization'],
+            ['Male', '1', 'Alan Turing', 'Bletchley Park'],
+            ['Female', '1', 'Grace Hopper', 'Bletchley Park'],
+            ['Male', '', 'Bob Smith', 'Bletchley Park'],
+            ['', '', 'Ambiguous Person', 'Bletchley Park'],
+            [],
+            [__('registration::admin.report_count_label'), '=ROW()-3'],
+        ], $this->exportCsvRows($response->streamedContent()));
+    }
+
+    #[TestDox('the csv names a member who is no longer in the pool by id')]
+    public function test_the_csv_names_a_member_who_is_no_longer_in_the_pool_by_id(): void
+    {
+        $group = PrayerPalsGroup::factory()->create(['sex' => Gender::Male, 'position' => 1]);
+        PrayerPalsAssignment::create(['prayer_pals_group_id' => $group->id, 'assignable_type' => Guest::class, 'assignable_id' => 999]);
+
+        $rows = $this->exportCsvRows($this->actingAs($this->makeUser())
+            ->get(route('registration.admin.logistics.prayer_pals.csv'))
+            ->streamedContent());
+
+        $this->assertSame(['Male', '1', '#999', ''], $rows[1]);
+    }
+
+    #[TestDox('the page offers both exports and the pdf options dialog')]
+    public function test_the_page_offers_both_exports_and_the_pdf_options_dialog(): void
+    {
+        $this->actingAs($this->makeUser())
+            ->get(route('registration.admin.logistics.prayer_pals'))
+            ->assertOk()
+            ->assertSee(__('registration::admin.export_pdf'))
+            ->assertSee(route('registration.admin.logistics.prayer_pals.csv'), false)
+            ->assertSee('id="pdf-options-modal"', false)
+            ->assertSee('name="pdf_paper" value="letter" checked', false);
+    }
+
+    #[TestDox('the pdf payload has a section per sex, then the unassigned by sex')]
+    public function test_the_pdf_payload_has_a_section_per_sex_then_the_unassigned_by_sex(): void
+    {
+        $this->seedExportScenario();
+
+        $payload = $this->embeddedPdfPayload($this->actingAs($this->makeUser())
+            ->get(route('registration.admin.logistics.prayer_pals'))
+            ->getContent());
+
+        $bar = fn (string $label, string $text): array => ['label' => $label, 'items' => [['headline' => null, 'text' => $text]]];
+        $group = __('registration::admin.prayer_pals_group_label', ['label' => '1']).' — '.trans_choice('registration::admin.prayer_pals_members_count', 1, ['count' => 1]);
+
+        $this->assertSame('prayer-pals', $payload['filename']);
+        $this->assertSame(4, $payload['count']);
+        $this->assertSame([
+            ['heading' => __('registration::admin.prayer_pals_male'), 'bars' => [$bar($group, 'Alan Turing (Bletchley Park)')]],
+            ['heading' => __('registration::admin.prayer_pals_female'), 'bars' => [$bar($group, 'Grace Hopper (Bletchley Park)')]],
+            ['heading' => __('registration::admin.prayer_pals_unassigned'), 'bars' => [
+                $bar(__('registration::admin.prayer_pals_male'), 'Bob Smith (Bletchley Park)'),
+                $bar(__('registration::admin.prayer_pals_unknown_sex'), 'Ambiguous Person (Bletchley Park)'),
+            ]],
+        ], $payload['sections']);
+    }
+
+    #[TestDox('the pdf payload has no unassigned section once everyone is grouped')]
+    public function test_the_pdf_payload_has_no_unassigned_section_once_everyone_is_grouped(): void
+    {
+        $payload = $this->embeddedPdfPayload($this->actingAs($this->makeUser())
+            ->get(route('registration.admin.logistics.prayer_pals'))
+            ->getContent());
+
+        $this->assertSame([
+            ['heading' => __('registration::admin.prayer_pals_male'), 'bars' => []],
+            ['heading' => __('registration::admin.prayer_pals_female'), 'bars' => []],
+        ], $payload['sections']);
+    }
+
+    #[TestDox('a grouped member shows by name on the console')]
+    public function test_a_grouped_member_shows_by_name_on_the_console(): void
+    {
+        $group = PrayerPalsGroup::factory()->create(['sex' => Gender::Male, 'position' => 1]);
+        $alan = $this->makeRegistrant('Alan', 'Turing', ['gender' => 'm']);
+        PrayerPalsAssignment::create(['prayer_pals_group_id' => $group->id, 'assignable_type' => $alan->getMorphClass(), 'assignable_id' => $alan->getKey()]);
+
+        $content = $this->actingAs($this->makeUser())
+            ->get(route('registration.admin.logistics.prayer_pals'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertMatchesRegularExpression('/data-occupant="user:'.$alan->getKey().'">\s*Alan Turing/', $content);
     }
 
     #[TestDox('index splits registrants by sex and lists the unassigned')]

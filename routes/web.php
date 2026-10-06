@@ -351,6 +351,7 @@ Route::middleware(config('registration.admin_middleware'))
         // small single-sex groups (never auto-grouped) whose number/letter
         // also then places on the name badge — see PrayerPalsController.
         Route::get('logistics/prayer-pals', [PrayerPalsController::class, 'index'])->name($namePrefix.'admin.logistics.prayer_pals');
+        Route::get('logistics/prayer-pals/csv', [PrayerPalsController::class, 'csv'])->name($namePrefix.'admin.logistics.prayer_pals.csv');
         Route::put('logistics/prayer-pals/settings', [PrayerPalsController::class, 'updateSettings'])->name($namePrefix.'admin.logistics.prayer_pals.settings');
         Route::post('logistics/prayer-pals/groups', [PrayerPalsController::class, 'storeGroup'])->name($namePrefix.'admin.logistics.prayer_pals.groups.store');
         Route::delete('logistics/prayer-pals/groups/{group}', [PrayerPalsController::class, 'destroyGroup'])->name($namePrefix.'admin.logistics.prayer_pals.groups.destroy');
@@ -411,6 +412,7 @@ Route::middleware(config('registration.admin_middleware'))
         Route::put('rooms/zone', [RoomController::class, 'updateZone'])->name($namePrefix.'admin.rooms.zone');
         Route::delete('rooms/zone', [RoomController::class, 'destroyZone'])->name($namePrefix.'admin.rooms.zone.destroy');
         Route::get('rooms/assignments', [RoomAssignmentController::class, 'index'])->name($namePrefix.'admin.rooms.assignments');
+        Route::get('rooms/assignments/csv', [RoomAssignmentController::class, 'csv'])->name($namePrefix.'admin.rooms.assignments.csv');
         Route::post('rooms/assignments', [RoomAssignmentController::class, 'assign'])->name($namePrefix.'admin.rooms.assignments.assign');
         Route::post('rooms/assignments/first-pass', [RoomAssignmentController::class, 'firstPass'])->name($namePrefix.'admin.rooms.assignments.first_pass');
         Route::delete('rooms/assignments/{assignment}', [RoomAssignmentController::class, 'unassign'])->name($namePrefix.'admin.rooms.assignments.unassign');

@@ -84,6 +84,7 @@ return [
     'export_sex' => 'Sex',
     'export_assignee_name' => 'Assignee Name',
     'export_assignee_type' => 'Assignee Type',
+    'export_gender' => 'Gender',
 
     // Data reset card (dashboard): wipes all registration data for a clean
     // slate — a testing pass or clearing seeded demo data. Never touches
@@ -611,6 +612,7 @@ return [
     'prayer_pals_male' => 'Men',
     'prayer_pals_female' => 'Women',
     'prayer_pals_unassigned' => 'Unassigned',
+    'prayer_pals_unknown_sex' => 'Sex Not Recorded',
     'prayer_pals_all_assigned' => 'Everyone is grouped.',
     'prayer_pals_new_group' => 'New Group',
     'prayer_pals_group_label' => 'Group :label',

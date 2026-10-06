@@ -26,7 +26,7 @@
 @endphp
 
 @section('content')
-    @include('registration::partials.report-toolbar')
+    @include('registration::partials.report-toolbar', ['reportName' => 'assignments', 'csvUrl' => route($routeName('admin.rooms.assignments.csv')), 'pdfPaper' => $pdfPaper])
 
 
     <h1>{{ __('registration::admin.assignments_title') }}</h1>
@@ -168,6 +168,8 @@
             </div>
         @endforeach
     @endif
+
+    @include('registration::partials.grouped-pdf-script')
 
     <script nonce="{{ $cspNonce ?? '' }}">
     (function () {

@@ -62,8 +62,8 @@ class DefaultReportsSeeder extends Seeder
 
     /**
      * The printable directory, honoring each registrant's directory-preference
-     * answer: the omit answers keep the whole row out, and the show-name/
-     * organization/email answers gate each cell.
+     * answer: only registrants whose answer shows their name are listed, and
+     * the show-name/organization/email answers gate each cell.
      */
     private function seedDirectory(): void
     {
@@ -72,7 +72,7 @@ class DefaultReportsSeeder extends Seeder
 
         $directory = $this->participantQuestion('report_directory_key');
 
-        $this->rule($report, $directory, ConditionOperator::In, $this->values('report_directory_omit_values', 'ShowBadgeName'));
+        $this->rule($report, $directory, ConditionOperator::In, $this->values('report_directory_show_name_values', 'ShowBadgeName'));
 
         $name = $this->builtinColumn($report, ReportField::BadgeName, header: 'Name');
         $this->rule($name, $directory, ConditionOperator::In, $this->values('report_directory_show_name_values', 'ShowBadgeName'));

@@ -163,4 +163,20 @@ trait BuildsReportData
     {
         return Group::firstOrCreate(['name' => 'Analytical Engines'], ['checked_out' => true]);
     }
+
+    /** @return list<list<string>> a downloaded CSV's rows, header included */
+    protected function exportCsvRows(string $content): array
+    {
+        $lines = explode("\n", rtrim(substr($content, 3), "\n"));
+
+        return array_map(fn (string $line): array => $line === '' ? [] : str_getcsv($line, escape: '\\'), $lines);
+    }
+
+    /** The JSON payload a console page embeds for its client-side PDF export. */
+    protected function embeddedPdfPayload(string $content): array
+    {
+        preg_match('/<script type="application\/json" id="report-pdf-data">(.*?)<\/script>/s', $content, $match);
+
+        return json_decode($match[1] ?? 'null', true, 512, JSON_THROW_ON_ERROR) ?? [];
+    }
 }

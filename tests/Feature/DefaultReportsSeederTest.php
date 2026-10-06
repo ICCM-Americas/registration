@@ -9,6 +9,7 @@ use ConferenceTools\Registration\Enums\ReportType;
 use ConferenceTools\Registration\Models\Report;
 use ConferenceTools\Registration\Models\ReportColumn;
 use ConferenceTools\Registration\Models\Setting;
+use ConferenceTools\Registration\Services\ReportRunner;
 use ConferenceTools\Registration\Tests\Concerns\BuildsReportData;
 use ConferenceTools\Registration\Tests\TestCase;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -110,6 +111,7 @@ class DefaultReportsSeederTest extends TestCase
     {
         $this->seedRetiredReportSettings();
         Setting::put('report_directory_omit_values', 'NoName, Hermit');
+        Setting::put('report_directory_show_name_values', 'ShowBadgeName, Named');
         Setting::put('guest_adults_in_directory', '1');
         $this->runSeeder();
 
@@ -120,7 +122,8 @@ class DefaultReportsSeederTest extends TestCase
 
         $rowCondition = $directory->conditionGroups->sole()->conditions->sole();
         $this->assertSame(ConditionOperator::In, $rowCondition->operator);
-        $this->assertSame('NoName,Hermit', $rowCondition->value);
+        // Kept only when the name is shown; the omit values play no part.
+        $this->assertSame('ShowBadgeName,Named', $rowCondition->value);
         $this->assertSame('directorypref', $rowCondition->question->key);
 
         // Each column gates on its designated "show ..." answers (defaults
@@ -128,7 +131,33 @@ class DefaultReportsSeederTest extends TestCase
         $cellRules = $directory->columns->map(
             fn (ReportColumn $c): string => $c->conditionGroups()->get()->sole()->conditions->sole()->value,
         );
-        $this->assertSame(['ShowBadgeName', 'ShowOrg', 'ShowEmail'], $cellRules->all());
+        $this->assertSame(['ShowBadgeName,Named', 'ShowOrg', 'ShowEmail'], $cellRules->all());
+    }
+
+    #[DataProvider('directoryListings')]
+    #[TestDox('the directory lists a registrant only when their answer shows their name')]
+    public function test_the_directory_lists_a_registrant_only_when_their_answer_shows_their_name(?array $preference, bool $listed): void
+    {
+        $this->seedRetiredReportSettings();
+        Setting::put('report_directory_omit_values', 'NoName');
+        $this->runSeeder();
+        $this->makeRegistrant('Ada', 'Lovelace', $preference === null ? [] : ['directorypref' => $preference]);
+
+        $rows = app(ReportRunner::class)->rows($this->reportNamed('Directory'));
+
+        $this->assertSame($listed ? [['Ada Lovelace', null, null]] : [], $rows->all());
+    }
+
+    /** Directory-preference answers and whether each lists the registrant, for the data provider. */
+    public static function directoryListings(): array
+    {
+        return [
+            'name shown' => [['ShowBadgeName'], true],
+            'opted out' => [['NoName'], false],
+            'email only' => [['ShowEmail'], false],
+            'organization only' => [['ShowOrg'], false],
+            'unanswered' => [null, false],
+        ];
     }
 
     #[DataProvider('unnominatedOutcomes')]

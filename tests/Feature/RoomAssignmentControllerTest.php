@@ -11,6 +11,7 @@ use ConferenceTools\Registration\Services\GuestQuestions;
 use ConferenceTools\Registration\Tests\Concerns\BuildsReportData;
 use ConferenceTools\Registration\Tests\TestCase;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestDox;
 
 /** Feature tests for Room Assignment Controller. */
@@ -26,14 +27,122 @@ class RoomAssignmentControllerTest extends TestCase
         $this->seedReportQuestions();
     }
 
-    #[TestDox('assignments page requires the gate')]
-    public function test_assignments_page_requires_the_gate(): void
+    /** The read-only routes for the data provider. */
+    public static function pageRoutes(): array
+    {
+        return [
+            'index' => ['registration.admin.rooms.assignments'],
+            'csv' => ['registration.admin.rooms.assignments.csv'],
+        ];
+    }
+
+    #[DataProvider('pageRoutes')]
+    #[TestDox('assignments pages require the gate')]
+    public function test_assignments_pages_require_the_gate(string $route): void
     {
         $this->denyRegistrationManagement();
 
         $this->actingAs($this->makeUser())
-            ->get(route('registration.admin.rooms.assignments'))
+            ->get(route($route))
             ->assertForbidden();
+    }
+
+    /** Two rooms in one zone (one occupied, one empty), plus an unassigned registrant and their adult guest. */
+    private function seedExportScenario(): void
+    {
+        $occupied = Room::factory()->create(['wing' => 'A', 'floor' => '1', 'name' => '101', 'capacity' => 2, 'designation' => RoomDesignation::Men]);
+        Room::factory()->create(['wing' => 'A', 'floor' => '1', 'name' => '102', 'capacity' => 2, 'designation' => RoomDesignation::Men]);
+        $housed = $this->makeRegistrant('Alan', 'Turing', ['gender' => 'm']);
+        $homeless = $this->makeRegistrant('Grace', 'Hopper', ['gender' => 'f']);
+        $this->makeGuest($homeless, GuestType::Adult, ['guestname' => 'Joan Clarke']);
+        RoomAssignment::create(['room_id' => $occupied->id, 'assignable_type' => $housed->getMorphClass(), 'assignable_id' => $housed->getKey()]);
+    }
+
+    #[TestDox('the csv lists rooms in order, empty ones included, then the unassigned, and counts occupants')]
+    public function test_the_csv_lists_rooms_in_order_empty_ones_included_then_the_unassigned_and_counts_occupants(): void
+    {
+        $this->seedExportScenario();
+
+        $response = $this->actingAs($this->makeUser())
+            ->get(route('registration.admin.rooms.assignments.csv'))
+            ->assertOk()
+            ->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
+
+        $this->assertMatchesRegularExpression('/room-assignments-\d{8}-\d{6}\.csv/', $response->headers->get('Content-Disposition'));
+        $this->assertSame([
+            ['Wing', 'Floor', 'Room', 'Name', 'Occupant Type', 'Gender'],
+            ['A', '1', '101', 'Alan Turing', 'Attendee', 'Male'],
+            ['A', '1', '102', '', '', ''],
+            ['', '', '', 'Grace Hopper', 'Attendee', 'Female'],
+            ['', '', '', 'Joan Clarke', 'Adult Guest', ''],
+            [],
+            [__('registration::admin.report_count_label'), '3'],
+        ], $this->exportCsvRows($response->streamedContent()));
+    }
+
+    #[TestDox('the csv names a placement whose occupant no longer exists by id')]
+    public function test_the_csv_names_a_placement_whose_occupant_no_longer_exists_by_id(): void
+    {
+        $room = Room::factory()->create(['wing' => 'A', 'floor' => '1', 'name' => '101']);
+        RoomAssignment::create(['room_id' => $room->id, 'assignable_type' => Guest::class, 'assignable_id' => 999]);
+
+        $rows = $this->exportCsvRows($this->actingAs($this->makeUser())
+            ->get(route('registration.admin.rooms.assignments.csv'))
+            ->streamedContent());
+
+        $this->assertSame(['A', '1', '101', '#999', '', ''], $rows[1]);
+    }
+
+    #[TestDox('the page offers both exports and the pdf options dialog')]
+    public function test_the_page_offers_both_exports_and_the_pdf_options_dialog(): void
+    {
+        $this->actingAs($this->makeUser())
+            ->get(route('registration.admin.rooms.assignments'))
+            ->assertOk()
+            ->assertSee(__('registration::admin.export_pdf'))
+            ->assertSee(route('registration.admin.rooms.assignments.csv'), false)
+            ->assertSee('id="pdf-options-modal"', false)
+            ->assertSee('name="pdf_paper" value="letter" checked', false);
+    }
+
+    #[TestDox('the pdf payload has a bar per zone, a line per room, then the unassigned')]
+    public function test_the_pdf_payload_has_a_bar_per_zone_a_line_per_room_then_the_unassigned(): void
+    {
+        $this->seedExportScenario();
+
+        $payload = $this->embeddedPdfPayload($this->actingAs($this->makeUser())
+            ->get(route('registration.admin.rooms.assignments'))
+            ->getContent());
+
+        $this->assertSame('room-assignments', $payload['filename']);
+        $this->assertSame(3, $payload['count']);
+        $this->assertSame([
+            [
+                'heading' => null,
+                'bars' => [[
+                    'label' => __('registration::admin.rooms_zone', ['wing' => 'A', 'floor' => '1']).' — '.RoomDesignation::Men->label(),
+                    'items' => [
+                        ['headline' => '101 (1 free)', 'text' => 'Alan Turing'],
+                        ['headline' => '102 (2 free)', 'text' => ''],
+                    ],
+                ]],
+            ],
+            [
+                'heading' => __('registration::admin.assignments_unassigned'),
+                'bars' => [['label' => null, 'items' => [['headline' => null, 'text' => 'Grace Hopper, Joan Clarke (Adult Guest)']]]],
+            ],
+        ], $payload['sections']);
+    }
+
+    #[TestDox('the pdf payload has no unassigned section once everyone is placed')]
+    public function test_the_pdf_payload_has_no_unassigned_section_once_everyone_is_placed(): void
+    {
+        $payload = $this->embeddedPdfPayload($this->actingAs($this->makeUser())
+            ->get(route('registration.admin.rooms.assignments'))
+            ->getContent());
+
+        $this->assertSame([['heading' => null, 'bars' => []]], $payload['sections']);
+        $this->assertSame(0, $payload['count']);
     }
 
     #[TestDox('index shows occupants and the unassigned')]
